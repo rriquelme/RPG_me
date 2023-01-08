@@ -15,11 +15,12 @@ class Lvl_char (object):
         self.exp = 0
         self.lvl = 1
         self.exp_next = 50
+        self.base_exp_per_level = 50
     def gain_exp(self, exp : int):
         self.exp += exp
         if self.exp >= self.exp_next:
             self.exp -= self.exp_next
             self.lvl += 1
-            self.exp_next = (self.lvl *50 * 2** (self.lvl - 1) )
+            self.exp_next = (self.lvl * self.base_exp_per_level * 2** (self.lvl - 1) )
     
 
