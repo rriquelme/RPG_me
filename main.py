@@ -12,6 +12,10 @@ resolution_display = [500,500]
 pygame.init()
 screen = pygame.display.set_mode(resolution_display)
 running = True
+picture = pygame.image.load("RR.jpg").convert()
+picture = pygame.transform.scale(picture, square_draw)
+# Using blit to copy content from one surface to other
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -19,6 +23,7 @@ while running:
     screen.fill(gray1)
 
     pygame.draw.rect(screen,grey,(0,0,square_draw[0],square_draw[1]))
+    screen.blit(picture, (0, 0))
     pygame.draw.rect(screen,gray1,(square_draw[0],0,resolution_display[0]-square_draw[0],resolution_display[1]))
     pygame.draw.rect(screen,gray2,(0,square_draw[1],square_draw[0],resolution_display[1]-square_draw[1]))
     pygame.display.flip()
