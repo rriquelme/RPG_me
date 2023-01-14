@@ -16,16 +16,33 @@ picture = pygame.image.load("RR.jpg").convert()
 picture = pygame.transform.scale(picture, square_draw)
 # Using blit to copy content from one surface to other
 
+screen.fill(gray1)
+pygame.draw.rect(screen,grey,(0,0,square_draw[0],square_draw[1]))
+screen.blit(picture, (0, 0))
+pygame.draw.rect(screen,gray1,(square_draw[0],0,resolution_display[0]-square_draw[0],resolution_display[1]))
+pygame.draw.rect(screen,gray2,(0,square_draw[1],square_draw[0],resolution_display[1]-square_draw[1]))
+
+clock = pygame.time.Clock()
+input_rect = pygame.Rect(200, 200, 140, 32)
+base_font = pygame.font.Font(None, 32)
+user_text = ''
+
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-    screen.fill(gray1)
 
-    pygame.draw.rect(screen,grey,(0,0,square_draw[0],square_draw[1]))
-    screen.blit(picture, (0, 0))
-    pygame.draw.rect(screen,gray1,(square_draw[0],0,resolution_display[0]-square_draw[0],resolution_display[1]))
-    pygame.draw.rect(screen,gray2,(0,square_draw[1],square_draw[0],resolution_display[1]-square_draw[1]))
+        pygame.draw.rect(screen, gray3, input_rect)
+        text_surface = base_font.render(user_text, True, (255, 255, 255))
+        screen.blit(text_surface, (input_rect.x+5, input_rect.y+5))
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                user_text = user_text[:-1]
+            else:
+                user_text += event.unicode
+
     pygame.display.flip()
+    clock.tick(60)
 
 pygame.quit()
