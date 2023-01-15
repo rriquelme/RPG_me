@@ -23,8 +23,8 @@ pygame.draw.rect(screen,gray1,(square_draw[0],0,resolution_display[0]-square_dra
 pygame.draw.rect(screen,gray2,(0,square_draw[1],square_draw[0],resolution_display[1]-square_draw[1]))
 
 clock = pygame.time.Clock()
-input_rect = pygame.Rect(200, 200, 140, 32)
-base_font = pygame.font.Font(None, 32)
+input_rect = pygame.Rect(150, 25, 400, 25)
+base_font = pygame.font.Font(None, 25)
 user_text = ''
 
 while running:
@@ -33,7 +33,7 @@ while running:
             running = False
 
         pygame.draw.rect(screen, gray3, input_rect)
-        text_surface = base_font.render(user_text, True, (255, 255, 255))
+        text_surface = base_font.render(user_text, True, (0, 0, 0))
         screen.blit(text_surface, (input_rect.x+5, input_rect.y+5))
 
         if event.type == pygame.KEYDOWN:
