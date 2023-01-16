@@ -28,6 +28,8 @@ base_font = pygame.font.Font(None, 25)
 user_text = ''
 class inputs_rec():
     def __init__(self,x,y,x1,y1) -> None:
+        self.rect = pygame.Rect(x,y,x1,y1)
+        pygame.draw.rect(screen, gray3, self.rect)
         pass
 
 while running:
