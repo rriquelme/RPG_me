@@ -26,6 +26,9 @@ clock = pygame.time.Clock()
 input_rect = pygame.Rect(150, 25, 400, 25)
 base_font = pygame.font.Font(None, 25)
 user_text = ''
+class inputs_rec():
+    def __init__(self,x,y,x1,y1) -> None:
+        pass
 
 while running:
     for event in pygame.event.get():
