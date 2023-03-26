@@ -16,6 +16,7 @@ picture = pygame.image.load("RR.jpg").convert()
 picture = pygame.transform.scale(picture, square_draw)
 # Using blit to copy content from one surface to other
 
+
 screen.fill(gray1)
 pygame.draw.rect(screen,grey,(0,0,square_draw[0],square_draw[1]))
 screen.blit(picture, (0, 0))
