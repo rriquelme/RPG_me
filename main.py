@@ -33,7 +33,6 @@ class inputs_rec():
         pygame.draw.rect(screen, gray3, self.rect)
         pass
 
-
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
