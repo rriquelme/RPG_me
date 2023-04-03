@@ -1,4 +1,6 @@
 import pygame
+import json
+
 
 white = (255,255,255)
 grey =  (169,169,169)
@@ -50,7 +52,7 @@ while running:
 
     pygame.display.flip()
     clock.tick(60)
-    
+
 pygame.quit()
 
 

@@ -23,5 +23,3 @@ class Lvl_char (object):
             self.lvl += 1
             self.exp_next = (self.lvl * self.base_exp_per_level * 2** (self.lvl - 1) )
     
-
-assert 1==1
