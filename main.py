@@ -1,6 +1,6 @@
 import pygame
 import json
-
+import os
 
 white = (255,255,255)
 grey =  (169,169,169)
@@ -29,16 +29,23 @@ clock = pygame.time.Clock()
 input_rect = pygame.Rect(150, 25, 400, 25)
 base_font = pygame.font.Font(None, 25)
 user_text = ''
+save = {}
+if os.path.isfile('save_file.json'):
+    with open('save_file.json', 'r') as file:
+        save = json.load(file)
+
 class inputs_rec():
     def __init__(self,x,y,x1,y1) -> None:
         self.rect = pygame.Rect(x,y,x1,y1)
         pygame.draw.rect(screen, gray3, self.rect)
         pass
-
+user_text = save.get('user')
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+            with open('save_file.json', 'w') as outfile:
+                json.dump(save, outfile)
 
         pygame.draw.rect(screen, gray3, input_rect)
         text_surface = base_font.render(user_text, True, (0, 0, 0))
@@ -49,9 +56,11 @@ while running:
                 user_text = user_text[:-1]
             else:
                 user_text += event.unicode
+            save["user"] = user_text
 
     pygame.display.flip()
     clock.tick(60)
+
 
 pygame.quit()
 
