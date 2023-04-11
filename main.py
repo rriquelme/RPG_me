@@ -10,6 +10,7 @@ gray2 =(240,240,240)
 gray3 =(230,230,230)
 black = (  0,  0,  0)
 blue =  (  0,  0,200)
+
 square_draw = (150,150)
 resolution_display = [500,500]
 pygame.init()
