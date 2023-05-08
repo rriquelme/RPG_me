@@ -66,5 +66,3 @@ while running:
 
 
 pygame.quit()
-
-
