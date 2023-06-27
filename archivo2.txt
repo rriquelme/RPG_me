@@ -1,3 +1,0 @@
--- Personajes --
-usuario1
--- Usuarios --
