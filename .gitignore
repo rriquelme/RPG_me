@@ -4,15 +4,15 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Virtualenvs (never commit these)
+# Virtualenvs (never commit these) — anchored to repo root so app/lib/ is fine
 .venv/
 venv/
 env/
-bin/
-include/
-lib/
-lib64
-pyvenv.cfg
+/bin/
+/include/
+/lib/
+/lib64
+/pyvenv.cfg
 
 # RPG_me generated artifacts
 octagon.png
