@@ -1,2 +1,24 @@
-bin/python*
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenvs (never commit these)
+.venv/
+venv/
+env/
+bin/
+include/
+lib/
 lib64
+pyvenv.cfg
+
+# RPG_me generated artifacts
+octagon.png
+data/save_file.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
