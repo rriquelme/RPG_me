@@ -18,6 +18,10 @@ pyvenv.cfg
 octagon.png
 data/save_file.json
 
+# AWS SAM build output
+.aws-sam/
+backend/.aws-sam/
+
 # OS / editor
 .DS_Store
 .idea/

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpgme"
+version = "0.1.0"
+description = "Turn your life into an 8-axis RPG character sheet."
+requires-python = ">=3.9"
+dependencies = []  # core engine is pure standard library
+
+[project.optional-dependencies]
+chart = ["matplotlib>=3.7"]   # local octagon preview only
+aws = ["boto3>=1.28"]          # DynamoStore (provided by the Lambda runtime)
+
+[tool.setuptools]
+packages = ["rpgme"]
+
+[project.scripts]
+rpg-me = "cli:main"

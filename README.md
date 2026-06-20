@@ -53,10 +53,11 @@ from that event log — so adding "how often" stats later is just another query.
 
 - [x] **Phase 1 — Local engine** (this repo): skills, exp/levels, event log,
       counters/streaks, octagon data + preview chart, CLI, tests.
-- [ ] **Phase 2 — AWS Lambda backend.** Wrap `Engine` in Lambda handlers behind
-      API Gateway; add `DynamoStore(Store)` (tables for skills + events). The
-      engine code is already storage-agnostic, so this is mostly glue + a SAM
-      template. `engine.summary()` is the natural JSON API response.
+- [x] **Phase 2 — AWS Lambda backend** (see [`backend/`](backend/)): a
+      `DynamoStore(Store)` single-table design plus a Lambda + HTTP API that
+      exposes the *same* engine over REST. Deployable with `sam build && sam
+      deploy`. The engine code was reused unchanged. See
+      [backend/README.md](backend/README.md).
 - [ ] **Phase 3 — Flutter APK.** A mobile app that calls the API, logs routines
       with a tap, and draws the octagon natively (`fl_chart` RadarChart). One
       codebase → a real `.apk`.

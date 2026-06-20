@@ -10,7 +10,7 @@ same logic can later run inside an AWS Lambda backed by DynamoDB.
 
 from .models import Axis, Skill, level_for_exp, exp_to_next
 from .engine import Engine
-from .store import JSONStore, Store
+from .store import JSONStore, MemoryStore, DynamoStore, Store
 
 __all__ = [
     "Axis",
@@ -18,6 +18,8 @@ __all__ = [
     "Engine",
     "Store",
     "JSONStore",
+    "MemoryStore",
+    "DynamoStore",
     "level_for_exp",
     "exp_to_next",
 ]

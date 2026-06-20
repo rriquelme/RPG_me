@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RPG_me — serverless backend. One Lambda (the storage-agnostic rpgme engine
+  behind a tiny router) + an HTTP API + a single DynamoDB table.
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 256
+    Runtime: python3.12
+
+Parameters:
+  DefaultUser:
+    Type: String
+    Default: me
+    Description: Fallback user id when no ?user= is supplied (single-user mode).
+
+Resources:
+  RpgMeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: rpg_me
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  RpgMeFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: makefile
+    Properties:
+      CodeUri: .
+      Handler: handler.lambda_handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref RpgMeTable
+          DEFAULT_USER: !Ref DefaultUser
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref RpgMeTable
+      Events:
+        Axes:
+          Type: HttpApi
+          Properties: { Path: /axes, Method: GET }
+        Log:
+          Type: HttpApi
+          Properties: { Path: /log, Method: POST }
+        Summary:
+          Type: HttpApi
+          Properties: { Path: /summary, Method: GET }
+        Octagon:
+          Type: HttpApi
+          Properties: { Path: /octagon, Method: GET }
+        Streak:
+          Type: HttpApi
+          Properties: { Path: "/streak/{name}", Method: GET }
+
+Outputs:
+  ApiUrl:
+    Description: Base URL of the RPG_me HTTP API
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  TableName:
+    Value: !Ref RpgMeTable
