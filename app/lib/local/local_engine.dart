@@ -175,6 +175,34 @@ class LocalEngine {
     return TimePeriods(periods);
   }
 
+  /// Total tracked seconds per axis (all time) — used for the hours octagon.
+  Map<String, int> secondsByAxis() => timeTotals().byAxis;
+
+  // --- heatmap (GitHub-squares) -------------------------------------------
+  static String dayKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Events logged per calendar day (frequency heatmap).
+  Map<String, int> dailyCounts() {
+    final m = <String, int>{};
+    for (final e in events) {
+      final k = dayKey(e.timestamp);
+      m[k] = (m[k] ?? 0) + 1;
+    }
+    return m;
+  }
+
+  /// Tracked seconds per calendar day (time-spent heatmap).
+  Map<String, int> dailySeconds() {
+    final m = <String, int>{};
+    for (final e in events) {
+      if (e.seconds <= 0) continue;
+      final k = dayKey(e.timestamp);
+      m[k] = (m[k] ?? 0) + e.seconds;
+    }
+    return m;
+  }
+
   // --- snapshot -----------------------------------------------------------
   Summary summary({String user = 'me'}) {
     final weekAgo = DateTime.now().subtract(const Duration(days: 7));
@@ -184,6 +212,7 @@ class LocalEngine {
       countsAllTime: counts(),
       countsLast7Days: counts(since: weekAgo),
       totalEvents: events.length,
+      secondsByAxis: secondsByAxis(),
     );
   }
 }

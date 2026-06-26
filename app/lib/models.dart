@@ -107,6 +107,7 @@ class Summary {
   final Map<String, int> countsAllTime;
   final Map<String, int> countsLast7Days;
   final int totalEvents;
+  final Map<String, int> secondsByAxis; // all-time seconds per axis key
 
   const Summary({
     required this.user,
@@ -114,6 +115,7 @@ class Summary {
     required this.countsAllTime,
     required this.countsLast7Days,
     required this.totalEvents,
+    this.secondsByAxis = const {},
   });
 
   factory Summary.fromJson(Map<String, dynamic> j) {
@@ -127,6 +129,7 @@ class Summary {
       countsAllTime: ints(j['counts_all_time']),
       countsLast7Days: ints(j['counts_last_7_days']),
       totalEvents: (j['total_events'] ?? 0) as int,
+      secondsByAxis: ints(j['seconds_by_axis']),
     );
   }
 }

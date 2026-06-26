@@ -1,14 +1,20 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models.dart';
 import '../repository.dart';
-import '../settings.dart';
 import '../widgets/octagon_chart.dart';
 import 'axes_config_screen.dart';
+import 'heatmap_screen.dart';
 import 'log_screen.dart';
 import 'settings_dialog.dart';
 import 'time_screen.dart';
-import 'timer_screen.dart';
+import 'timers_screen.dart';
+
+enum OctagonMetric { hours, levels }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Repository? _repo;
   Future<Summary>? _summaryFuture;
   bool _syncing = false;
+  OctagonMetric _metric = OctagonMetric.hours;
 
   @override
   void initState() {
@@ -37,9 +44,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _refresh() {
-    if (_repo != null) {
-      setState(() => _summaryFuture = _repo!.summary());
-    }
+    if (_repo != null) setState(() => _summaryFuture = _repo!.summary());
   }
 
   Future<void> _openSettings() async {
@@ -51,34 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openLog() async {
-    if (_repo == null) return;
-    final logged = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => LogScreen(repo: _repo!)),
-    );
-    if (logged == true) _refresh();
-  }
-
-  Future<void> _openTimer() async {
-    if (_repo == null) return;
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => TimerScreen(repo: _repo!)),
-    );
-    if (saved == true) _refresh();
-  }
-
-  void _openTime() {
-    if (_repo == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TimeScreen(repo: _repo!)),
-    );
-  }
-
-  Future<void> _openAxesConfig() async {
-    if (_repo == null) return;
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => AxesConfigScreen(repo: _repo!)),
-    );
+  Future<void> _push(Widget screen) async {
+    final changed = await Navigator.of(context)
+        .push<bool>(MaterialPageRoute(builder: (_) => screen));
     if (changed == true) _refresh();
   }
 
@@ -94,12 +74,65 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() => _syncing = false);
     final msg = result.ok
-        ? (result.pushed == 0
-            ? 'Already up to date.'
-            : 'Synced ${result.pushed} event(s).')
+        ? (result.pushed == 0 ? 'Already up to date.' : 'Synced ${result.pushed} event(s).')
         : 'Sync failed: ${result.error}';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     _refresh();
+  }
+
+  Future<void> _export() async {
+    final repo = _repo;
+    if (repo == null) return;
+    try {
+      final csv = repo.exportCsv();
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/rpg_me_export.csv');
+      await file.writeAsString(csv);
+      await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')],
+          subject: 'RPG_me export', text: 'My RPG_me activity log (CSV / Excel).');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
+  }
+
+  void _onMenu(String value) {
+    final repo = _repo;
+    if (repo == null) return;
+    switch (value) {
+      case 'time':
+        _push(TimeScreen(repo: repo));
+        break;
+      case 'heatmap':
+        _push(HeatmapScreen(repo: repo));
+        break;
+      case 'axes':
+        _push(AxesConfigScreen(repo: repo));
+        break;
+      case 'export':
+        _export();
+        break;
+      case 'settings':
+        _openSettings();
+        break;
+    }
+  }
+
+  List<RadarPoint> _points(Summary s) {
+    return s.octagon.map((a) {
+      final value = _metric == OctagonMetric.hours
+          ? (s.secondsByAxis[a.key] ?? 0) / 3600.0
+          : a.level.toDouble();
+      return RadarPoint(label: a.label, color: a.color, value: value);
+    }).toList();
+  }
+
+  String _formatValue(double v) {
+    if (_metric == OctagonMetric.levels) return 'L${v.toInt()}';
+    if (v >= 1) return '${v.toStringAsFixed(v < 10 ? 1 : 0)}h';
+    return '${(v * 60).round()}m';
   }
 
   @override
@@ -114,35 +147,31 @@ class _HomeScreenState extends State<HomeScreen> {
             : [
                 IconButton(
                   icon: const Icon(Icons.timer_outlined),
-                  tooltip: 'Timer',
-                  onPressed: _openTimer,
+                  tooltip: 'Timers',
+                  onPressed: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => TimersScreen(repo: repo)),
+                    );
+                    _refresh(); // a saved timer logs time
+                  },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.bar_chart),
-                  tooltip: 'Time tracked',
-                  onPressed: _openTime,
-                ),
-                _SyncButton(
-                  syncing: _syncing,
-                  unsynced: unsynced,
-                  onPressed: _sync,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.tune),
-                  tooltip: 'Edit axes',
-                  onPressed: _openAxesConfig,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.settings),
-                  tooltip: 'Settings',
-                  onPressed: _openSettings,
+                _SyncButton(syncing: _syncing, unsynced: unsynced, onPressed: _sync),
+                PopupMenuButton<String>(
+                  onSelected: _onMenu,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'heatmap', child: Text('Activity heatmap')),
+                    PopupMenuItem(value: 'time', child: Text('Time tracked')),
+                    PopupMenuItem(value: 'axes', child: Text('Edit axes')),
+                    PopupMenuItem(value: 'export', child: Text('Export CSV (Excel)')),
+                    PopupMenuItem(value: 'settings', child: Text('Settings')),
+                  ],
                 ),
               ],
       ),
       floatingActionButton: repo == null
           ? null
           : FloatingActionButton.extended(
-              onPressed: _openLog,
+              onPressed: () => _push(LogScreen(repo: repo)),
               icon: const Icon(Icons.add),
               label: const Text('Log'),
             ),
@@ -150,8 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
-                if (!repo.settings.isConfigured)
-                  _OfflineBanner(unsynced: unsynced),
+                if (!repo.settings.isConfigured) _OfflineBanner(unsynced: unsynced),
                 Expanded(child: _buildBody()),
               ],
             ),
@@ -165,9 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (snap.hasError) {
-          return Center(child: Text(snap.error.toString()));
-        }
+        if (snap.hasError) return Center(child: Text(snap.error.toString()));
         final summary = snap.data!;
         final weekly = summary.countsLast7Days.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
@@ -178,7 +204,18 @@ class _HomeScreenState extends State<HomeScreen> {
             Text('${summary.user} · ${summary.totalEvents} events logged',
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
-            OctagonChart(stats: summary.octagon),
+            Center(
+              child: SegmentedButton<OctagonMetric>(
+                segments: const [
+                  ButtonSegment(value: OctagonMetric.hours, label: Text('Hours')),
+                  ButtonSegment(value: OctagonMetric.levels, label: Text('Levels')),
+                ],
+                selected: {_metric},
+                onSelectionChanged: (s) => setState(() => _metric = s.first),
+              ),
+            ),
+            const SizedBox(height: 8),
+            OctagonChart(points: _points(summary), formatValue: _formatValue),
             const SizedBox(height: 24),
             Text('This week', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
@@ -202,34 +239,25 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Sync icon with an unsynced-count badge.
 class _SyncButton extends StatelessWidget {
   final bool syncing;
   final int unsynced;
   final VoidCallback onPressed;
-  const _SyncButton({
-    required this.syncing,
-    required this.unsynced,
-    required this.onPressed,
-  });
+  const _SyncButton({required this.syncing, required this.unsynced, required this.onPressed});
 
   @override
   Widget build(BuildContext context) {
     final icon = syncing
-        ? const SizedBox(
-            width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
         : const Icon(Icons.sync);
     return IconButton(
       tooltip: unsynced > 0 ? 'Sync ($unsynced pending)' : 'Sync',
       onPressed: syncing ? null : onPressed,
-      icon: unsynced > 0
-          ? Badge(label: Text('$unsynced'), child: icon)
-          : icon,
+      icon: unsynced > 0 ? Badge(label: Text('$unsynced'), child: icon) : icon,
     );
   }
 }
 
-/// Shown when no backend is configured — the app is running purely offline.
 class _OfflineBanner extends StatelessWidget {
   final int unsynced;
   const _OfflineBanner({required this.unsynced});

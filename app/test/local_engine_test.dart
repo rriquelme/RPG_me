@@ -77,6 +77,26 @@ void main() {
     expect(back.colorHex, '#4C72B0');
   });
 
+  test('secondsByAxis and daily aggregates for octagon/heatmap', () {
+    final today = DateTime.now();
+    final eng = LocalEngine([
+      ev('mind', 'study', exp: 30, seconds: 1800, at: today),
+      ev('mind', 'read', exp: 10, at: today), // count-only
+      ev('health', 'gym', exp: 60, seconds: 3600, at: today),
+    ]);
+    expect(eng.secondsByAxis()['mind'], 1800);
+    expect(eng.secondsByAxis()['health'], 3600);
+    // daily counts include the count-only event; daily seconds do not
+    final dk = LocalEngine.dayKey(today);
+    expect(eng.dailyCounts()[dk], 3);
+    expect(eng.dailySeconds()[dk], 5400);
+  });
+
+  test('summary carries secondsByAxis', () {
+    final eng = LocalEngine([ev('mind', 'study', seconds: 1200)]);
+    expect(eng.summary().secondsByAxis['mind'], 1200);
+  });
+
   test('ytd excludes prior-year events', () {
     final now = DateTime.now();
     final lastYear = DateTime(now.year - 1, 6, 1, 12);

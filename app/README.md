@@ -11,13 +11,12 @@ log, so you can use it immediately with no backend. When you later deploy the
 
 ```
  ┌─────────────────────────────┐
- │ HomeScreen                  │   octagon (RadarChart) + this-week counts
- │   └ FAB "Log" → LogScreen   │   pick axis · name · exp slider
- │   └ ⏱ Timer → TimerScreen   │   stopwatch → confirm → file under a category
- │   └ 📊 Time → TimeScreen     │   tracked time: today/week/month/YTD/all-time
+ │ HomeScreen                  │   octagon (Hours or Levels) + this-week counts
+ │   └ FAB "Log" → LogScreen   │   category · name · time spent · date/time
+ │   └ ⏱ Timers → TimersScreen │   run several stopwatches at once
  │   └ 🔄 Sync (badge = pending)│   push unsynced events to the backend
- │   └ 🎛 Edit axes            │   rename/recolor/add/remove axes (4–10)
- │   └ ⚙ Settings → API URL    │   optional, only needed for sync
+ │   └ ⋮ menu                  │   Activity heatmap · Time tracked · Edit axes
+ │       · Export CSV (Excel)  │   · Settings
  └──────────────┬──────────────┘
                 │ Repository  (local-first)
         ┌───────┴────────┐
@@ -26,6 +25,21 @@ log, so you can use it immediately with no backend. When you later deploy the
    + LocalStore     POST /sync (idempotent, by client event id)
    (device storage)
 ```
+
+## What's new in 0.4
+
+- **Octagon by Hours or Levels** — toggle at the top of the home screen.
+  "Hours" plots total time spent per axis (the default); "Levels" keeps the
+  RPG exp/level view.
+- **Multiple timers** — the Timers screen runs several stopwatches at once;
+  each banks time against a category and "Stop & save" logs it. Timers are
+  persisted (wall-clock based), so they survive backgrounding/restart.
+- **Richer logging** — the Log screen records **time spent** (hours/minutes)
+  and the **day & time** (date/time picker) so you can review sessions later.
+- **Export CSV (Excel)** — menu → *Export CSV*; shares a spreadsheet of every
+  logged session (date, time, category, activity, seconds, hours, exp, note).
+- **Activity heatmap** — a GitHub-squares calendar of the last ~26 weeks,
+  toggleable between time-spent and frequency.
 
 ## Editable axes (4–10)
 
