@@ -50,6 +50,14 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     _axes[i] = _axes[i].copyWith(label: label);
   }
 
+  void _reorder(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final moved = _axes.removeAt(oldIndex);
+      _axes.insert(newIndex, moved);
+    });
+  }
+
   Future<void> _pickColor(int i) async {
     final chosen = await showDialog<String>(
       context: context,
@@ -115,7 +123,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                 Expanded(
                   child: Text(
                     '${_axes.length} axes (allowed: $kMinAxes–$kMaxAxes). '
-                    'Tap a colour to change it.',
+                    'Tap a colour to change it; drag ☰ to reorder.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -129,11 +137,14 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ),
           Expanded(
-            child: ListView.builder(
+            child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
+              onReorder: _reorder,
               itemCount: _axes.length,
               itemBuilder: (context, i) {
                 final axis = _axes[i];
                 return ListTile(
+                  key: ValueKey(axis.key),
                   leading: GestureDetector(
                     onTap: () => _pickColor(i),
                     child: CircleAvatar(
@@ -147,10 +158,22 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                     ),
                     onChanged: (v) => _rename(i, v),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes axes',
-                    onPressed: canRemove ? () => _remove(i) : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes axes',
+                        onPressed: canRemove ? () => _remove(i) : null,
+                      ),
+                      ReorderableDragStartListener(
+                        index: i,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(Icons.drag_handle), // the "3 lines"
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },

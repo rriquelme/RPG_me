@@ -17,7 +17,7 @@ Lambda router were added.
 |----------------------|----------------------------------------|----------------------------------|
 | `GET  /axes`         | `?user=`                               | the user's configured axes       |
 | `GET  /config`       | `?user=`                               | the editable axis config         |
-| `PUT  /config`       | `{axes:[...]}` (6–10)                   | replace the axis config          |
+| `PUT  /config`       | `{axes:[...]}` (4–10)                   | replace the axis config          |
 | `POST /log`          | `{axis, name, exp?, note?, seconds?}`  | the new event + updated skill    |
 | `GET  /summary`      | `?user=`                               | levels + all-time/weekly counts  |
 | `GET  /time`         | `?user=`                               | tracked time per period (below)  |

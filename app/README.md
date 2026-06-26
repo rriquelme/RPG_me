@@ -16,7 +16,7 @@ log, so you can use it immediately with no backend. When you later deploy the
  │   └ ⏱ Timer → TimerScreen   │   stopwatch → confirm → file under a category
  │   └ 📊 Time → TimeScreen     │   tracked time: today/week/month/YTD/all-time
  │   └ 🔄 Sync (badge = pending)│   push unsynced events to the backend
- │   └ 🎛 Edit axes            │   rename/recolor/add/remove axes (6–10)
+ │   └ 🎛 Edit axes            │   rename/recolor/add/remove axes (4–10)
  │   └ ⚙ Settings → API URL    │   optional, only needed for sync
  └──────────────┬──────────────┘
                 │ Repository  (local-first)
@@ -27,14 +27,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
-## Editable axes (6–10)
+## Editable axes (4–10)
 
-Tap **🎛 Edit axes** to rename, recolour, add, or remove the octagon's axes —
-anywhere from 6 to 10 of them. The config is stored on-device (defaults to the
-classic 8 on first run) and the octagon, log picker, and timer categories all
-follow it. When you sync, the app pushes your axis config to the backend first
-(`PUT /config`) so custom axes are recognised server-side. Removing an axis
-hides it from the octagon; the underlying logged events are kept.
+Tap **🎛 Edit axes** to rename, recolour, add, remove, or **reorder** the
+octagon's axes — anywhere from 4 to 10 of them. Drag the ☰ handle to change
+their order, which is the order they appear around the octagon. The config is
+stored on-device (defaults to the classic 8 on first run) and the octagon, log
+picker, and timer categories all follow it. When you sync, the app pushes your
+axis config to the backend first (`PUT /config`) so custom axes are recognised
+server-side. Removing an axis hides it from the octagon; the underlying logged
+events are kept.
 
 ## Offline-first & sync
 

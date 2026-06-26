@@ -1,8 +1,8 @@
 import '../models.dart';
 import 'event.dart';
 
-/// The octagon supports between 6 and 10 axes.
-const int kMinAxes = 6;
+/// The octagon supports between 4 and 10 axes.
+const int kMinAxes = 4;
 const int kMaxAxes = 10;
 
 /// One configured octagon axis (mirrors the backend's data/config.json).
