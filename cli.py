@@ -34,7 +34,16 @@ def cmd_axes(_args) -> None:
 
 def cmd_log(args) -> None:
     eng = _engine()
-    ev = eng.log(args.axis, args.name, exp=args.exp, note=args.note or "")
+    if args.seconds > 0:
+        ev = eng.log_time(
+            args.axis,
+            args.name,
+            args.seconds,
+            exp=args.exp if args.exp is not None else None,
+            note=args.note or "",
+        )
+    else:
+        ev = eng.log(args.axis, args.name, exp=args.exp or 10, note=args.note or "")
     eng.save()
     sk = eng.skill(args.axis)
     print(
@@ -63,6 +72,39 @@ def cmd_streak(args) -> None:
     print(f"{args.name}: {_engine().streak(args.name)} day streak")
 
 
+def _fmt_hms(seconds: int) -> str:
+    h, rem = divmod(int(seconds), 3600)
+    m, s = divmod(rem, 60)
+    if h:
+        return f"{h}h {m}m"
+    if m:
+        return f"{m}m {s}s"
+    return f"{s}s"
+
+
+def cmd_time(args) -> None:
+    eng = _engine()
+    periods = eng.time_periods()
+    labels = {
+        "today": "Today",
+        "this_week": "This week",
+        "this_month": "This month",
+        "ytd": "Year to date",
+        "all_time": "All time",
+    }
+    for key, label in labels.items():
+        data = periods[key]
+        if args.name:
+            secs = data["by_activity"].get(args.name.strip().lower(), 0)
+            print(f"  {label:14} {_fmt_hms(secs)}")
+        else:
+            print(f"{label}: {_fmt_hms(data['total_seconds'])}")
+            for name, secs in sorted(
+                data["by_activity"].items(), key=lambda x: -x[1]
+            ):
+                print(f"    {name:16} {_fmt_hms(secs)}")
+
+
 def cmd_chart(args) -> None:
     from rpgme.chart import render_octagon
 
@@ -89,7 +131,8 @@ def main() -> None:
     lg = sub.add_parser("log", help="log a routine/activity")
     lg.add_argument("axis", help="axis key (see `axes`)")
     lg.add_argument("name", help="what you did, e.g. gym/read/meditate")
-    lg.add_argument("--exp", type=int, default=10)
+    lg.add_argument("--exp", type=int, default=None)
+    lg.add_argument("--seconds", type=int, default=0, help="tracked duration of a timed session")
     lg.add_argument("--note", default="")
     lg.set_defaults(fn=cmd_log)
 
@@ -98,6 +141,10 @@ def main() -> None:
     st = sub.add_parser("streak", help="daily streak for an activity")
     st.add_argument("name")
     st.set_defaults(fn=cmd_streak)
+
+    tm = sub.add_parser("time", help="tracked time per period")
+    tm.add_argument("name", nargs="?", help="optional: one activity across periods")
+    tm.set_defaults(fn=cmd_time)
 
     ch = sub.add_parser("chart", help="render octagon.png")
     ch.add_argument("--out", default="octagon.png")

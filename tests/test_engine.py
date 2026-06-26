@@ -61,3 +61,36 @@ def test_streak_counts_consecutive_days():
 def test_default_octagon_has_eight_axes():
     eng = Engine(MemoryStore())
     assert len(eng.octagon()) == 8
+
+
+def test_log_time_awards_exp_per_minute_and_tracks_seconds():
+    eng = Engine(MemoryStore())
+    ev = eng.log_time("mind", "study", 45 * 60)
+    assert ev["seconds"] == 2700
+    assert ev["exp"] == 45  # one exp per tracked minute
+    assert eng.skill("mind").total_exp == 45
+
+
+def test_time_periods_group_by_activity_and_axis():
+    eng = Engine(MemoryStore())
+    eng.log_time("mind", "study", 25 * 60)
+    eng.log_time("health", "gym", 35 * 60)
+    today = eng.time_periods()["today"]
+    assert today["by_activity"]["study"] == 25 * 60
+    assert today["by_axis"]["health"] == 35 * 60
+    assert today["total_seconds"] == 60 * 60
+
+
+def test_count_only_log_excluded_from_time_totals():
+    eng = Engine(MemoryStore())
+    eng.log("mind", "read")  # no duration
+    assert eng.time_totals()["total_seconds"] == 0
+
+
+def test_ytd_excludes_prior_year():
+    eng = Engine(MemoryStore())
+    now = dt.datetime.now()
+    last_year = now.replace(year=now.year - 1)
+    eng.log_time("health", "gym", 60 * 60, timestamp=last_year.isoformat())
+    assert eng.time_periods()["ytd"]["total_seconds"] == 0
+    assert eng.time_periods()["all_time"]["total_seconds"] == 60 * 60

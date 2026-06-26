@@ -137,6 +137,7 @@ class DynamoStore(Store):
                             "exp": self._to_int(item.get("exp")),
                             "note": item.get("note", ""),
                             "timestamp": item["timestamp"],
+                            "seconds": self._to_int(item.get("seconds")),
                         }
                     )
             if "LastEvaluatedKey" in resp:
@@ -175,6 +176,7 @@ class DynamoStore(Store):
                         "exp": int(ev["exp"]),
                         "note": ev.get("note", ""),
                         "timestamp": ev["timestamp"],
+                        "seconds": int(ev.get("seconds", 0)),
                     }
                 )
                 self._known_event_ids.add(ev["id"])

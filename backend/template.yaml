@@ -57,6 +57,9 @@ Resources:
         Summary:
           Type: HttpApi
           Properties: { Path: /summary, Method: GET }
+        Time:
+          Type: HttpApi
+          Properties: { Path: /time, Method: GET }
         Octagon:
           Type: HttpApi
           Properties: { Path: /octagon, Method: GET }

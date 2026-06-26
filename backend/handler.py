@@ -6,8 +6,10 @@ file only translates HTTP <-> engine calls.
 
 Routes (API Gateway HTTP API, payload v2):
     GET  /axes                  list the configured octagon axes
-    POST /log                   {axis, name, exp?, note?} -> log a routine
+    POST /log                   {axis, name, exp?, note?, seconds?} -> log a
+                                routine; seconds>0 records a timed session
     GET  /summary               levels + counts snapshot (dashboard payload)
+    GET  /time                  tracked time by activity/axis per period
     GET  /octagon               just the radar-chart data
     GET  /streak/{name}         current daily streak for an activity
 
@@ -77,17 +79,32 @@ def handle(event: Dict[str, Any], engine_factory: Callable[[str], Engine] = make
 
         if route == "POST /log":
             body = _body(event)
-            ev = eng.log(
-                body["axis"],
-                body["name"],
-                exp=int(body.get("exp", 10)),
-                note=body.get("note", ""),
-            )
+            seconds = int(body.get("seconds", 0))
+            if seconds > 0:
+                # Timed session: exp defaults to one point per tracked minute.
+                exp = body.get("exp")
+                ev = eng.log_time(
+                    body["axis"],
+                    body["name"],
+                    seconds,
+                    exp=int(exp) if exp is not None else None,
+                    note=body.get("note", ""),
+                )
+            else:
+                ev = eng.log(
+                    body["axis"],
+                    body["name"],
+                    exp=int(body.get("exp", 10)),
+                    note=body.get("note", ""),
+                )
             eng.save()
             return _resp(201, {"event": ev, "skill": eng.skill(ev["axis_key"]).to_dict()})
 
         if route == "GET /summary":
             return _resp(200, eng.summary())
+
+        if route == "GET /time":
+            return _resp(200, {"periods": eng.time_periods()})
 
         if route == "GET /octagon":
             return _resp(200, {"octagon": eng.octagon()})

@@ -78,3 +78,17 @@ def test_streak_route():
 def test_unknown_route_404():
     res = handler.handle(_event("GET /nope"), engine_factory=_factory)
     assert res["statusCode"] == 404
+
+
+def test_log_timed_session_and_time_route():
+    res = handler.handle(
+        _event("POST /log", body={"axis": "mind", "name": "study", "seconds": 1800}),
+        engine_factory=_factory,
+    )
+    assert res["statusCode"] == 201
+    assert json.loads(res["body"])["event"]["seconds"] == 1800
+
+    res = handler.handle(_event("GET /time"), engine_factory=_factory)
+    periods = json.loads(res["body"])["periods"]
+    assert periods["today"]["by_activity"]["study"] == 1800
+    assert periods["ytd"]["total_seconds"] == 1800

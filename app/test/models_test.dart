@@ -41,4 +41,32 @@ void main() {
     expect(summary.countsAllTime['gym'], 2);
     expect(summary.countsLast7Days['gym'], 2);
   });
+
+  test('formatHms formats durations', () {
+    expect(formatHms(45), '45s');
+    expect(formatHms(125), '2m 5s');
+    expect(formatHms(4500), '1h 15m');
+  });
+
+  test('TimePeriods.fromJson parses period buckets', () {
+    final tp = TimePeriods.fromJson({
+      'periods': {
+        'today': {
+          'by_activity': {'study': 2700},
+          'by_axis': {'mind': 2700},
+          'total_seconds': 2700,
+        },
+        'all_time': {
+          'by_activity': {'study': 5400, 'gym': 3600},
+          'by_axis': {'mind': 5400, 'health': 3600},
+          'total_seconds': 9000,
+        },
+      },
+    });
+    expect(tp['today'].byActivity['study'], 2700);
+    expect(tp['today'].totalSeconds, 2700);
+    expect(tp['all_time'].byActivity['gym'], 3600);
+    // Unknown period falls back to empty rather than throwing.
+    expect(tp['this_week'].totalSeconds, 0);
+  });
 }

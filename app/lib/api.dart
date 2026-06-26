@@ -36,13 +36,29 @@ class ApiClient {
     return Summary.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  Future<void> log(String axis, String name, {int exp = 10, String note = ''}) async {
+  /// Log an activity. Pass [seconds] > 0 to record a timed session (exp then
+  /// defaults to one point per tracked minute on the server).
+  Future<void> log(String axis, String name,
+      {int? exp, String note = '', int seconds = 0}) async {
+    final payload = <String, dynamic>{
+      'axis': axis,
+      'name': name,
+      'note': note,
+      'seconds': seconds,
+    };
+    if (exp != null) payload['exp'] = exp;
     final res = await _http.post(
       _uri('/log'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'axis': axis, 'name': name, 'exp': exp, 'note': note}),
+      body: jsonEncode(payload),
     );
     _check(res);
+  }
+
+  Future<TimePeriods> time() async {
+    final res = await _http.get(_uri('/time'));
+    _check(res);
+    return TimePeriods.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   Future<int> streak(String name) async {

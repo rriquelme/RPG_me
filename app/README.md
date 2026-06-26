@@ -9,11 +9,13 @@ a real Android `.apk`.
  ┌─────────────────────────────┐
  │ HomeScreen                  │   octagon (RadarChart) + this-week counts
  │   └ FAB "Log" → LogScreen   │   pick axis · name · exp slider
+ │   └ ⏱ Timer → TimerScreen   │   stopwatch → confirm → file under a category
+ │   └ 📊 Time → TimeScreen     │   tracked time: today/week/month/YTD/all-time
  │   └ ⚙ Settings → API URL    │   stored via shared_preferences
  └──────────────┬──────────────┘
                 │ ApiClient (http)
                 ▼
-        GET /summary · /axes · POST /log · GET /streak/{name}
+   GET /summary · /axes · /time · POST /log (seconds) · GET /streak/{name}
 ```
 
 ## What's committed vs. generated
@@ -25,11 +27,11 @@ app/
   pubspec.yaml          dependencies (http, fl_chart, shared_preferences)
   lib/
     main.dart           app entry + theme
-    models.dart         AxisStat / Summary (mirror the API JSON)
+    models.dart         AxisStat / Summary / TimePeriods (mirror the API JSON)
     settings.dart       persisted API base URL + user id
-    api.dart            ApiClient
+    api.dart            ApiClient (summary, axes, log, time, streak)
     widgets/octagon_chart.dart    the 8-axis RadarChart
-    screens/            home, log, settings dialog
+    screens/            home, log, timer (stopwatch), time stats, settings
   test/models_test.dart JSON-parsing tests (run with `flutter test`)
 ```
 

@@ -6,6 +6,8 @@ import '../settings.dart';
 import '../widgets/octagon_chart.dart';
 import 'log_screen.dart';
 import 'settings_dialog.dart';
+import 'time_screen.dart';
+import 'timer_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -65,12 +67,39 @@ class _HomeScreenState extends State<HomeScreen> {
     if (logged == true) _refresh();
   }
 
+  Future<void> _openTimer() async {
+    if (_api == null) return;
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => TimerScreen(api: _api!)),
+    );
+    if (saved == true) _refresh();
+  }
+
+  void _openTime() {
+    if (_api == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TimeScreen(api: _api!)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('RPG_me'),
         actions: [
+          if (_api != null) ...[
+            IconButton(
+              icon: const Icon(Icons.timer_outlined),
+              tooltip: 'Timer',
+              onPressed: _openTimer,
+            ),
+            IconButton(
+              icon: const Icon(Icons.bar_chart),
+              tooltip: 'Time tracked',
+              onPressed: _openTime,
+            ),
+          ],
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: _openSettings,

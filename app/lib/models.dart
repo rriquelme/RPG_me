@@ -42,6 +42,64 @@ class AxisStat {
   double get progress => expToNext == 0 ? 0 : expIntoLevel / expToNext;
 }
 
+/// Format a duration in seconds as a compact "1h 15m" / "20m 5s" / "8s".
+String formatHms(int seconds) {
+  final h = seconds ~/ 3600;
+  final m = (seconds % 3600) ~/ 60;
+  final s = seconds % 60;
+  if (h > 0) return '${h}h ${m}m';
+  if (m > 0) return '${m}m ${s}s';
+  return '${s}s';
+}
+
+/// Tracked time within one period — mirrors an entry of the `/time` payload.
+class TimeTotals {
+  final Map<String, int> byActivity; // seconds
+  final Map<String, int> byAxis; // seconds
+  final int totalSeconds;
+
+  const TimeTotals({
+    required this.byActivity,
+    required this.byAxis,
+    required this.totalSeconds,
+  });
+
+  factory TimeTotals.fromJson(Map<String, dynamic> j) {
+    Map<String, int> ints(dynamic m) =>
+        (m as Map<String, dynamic>? ?? {}).map((k, v) => MapEntry(k, v as int));
+    return TimeTotals(
+      byActivity: ints(j['by_activity']),
+      byAxis: ints(j['by_axis']),
+      totalSeconds: (j['total_seconds'] ?? 0) as int,
+    );
+  }
+
+  static const empty = TimeTotals(byActivity: {}, byAxis: {}, totalSeconds: 0);
+}
+
+/// All period buckets from `GET /time`, keyed today/this_week/this_month/ytd/all_time.
+class TimePeriods {
+  final Map<String, TimeTotals> periods;
+  const TimePeriods(this.periods);
+
+  factory TimePeriods.fromJson(Map<String, dynamic> j) {
+    final raw = (j['periods'] ?? {}) as Map<String, dynamic>;
+    return TimePeriods(raw.map(
+        (k, v) => MapEntry(k, TimeTotals.fromJson(v as Map<String, dynamic>))));
+  }
+
+  TimeTotals operator [](String key) => periods[key] ?? TimeTotals.empty;
+
+  /// Display order + human labels for the UI.
+  static const ordered = [
+    ('today', 'Today'),
+    ('this_week', 'This week'),
+    ('this_month', 'This month'),
+    ('ytd', 'Year to date'),
+    ('all_time', 'All time'),
+  ];
+}
+
 /// The dashboard snapshot — mirrors `engine.summary()`.
 class Summary {
   final String user;

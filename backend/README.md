@@ -13,13 +13,25 @@ Lambda router were added.
 
 ## API
 
-| Method & path        | Body / params                     | Returns                          |
-|----------------------|-----------------------------------|----------------------------------|
-| `GET  /axes`         | —                                 | the 8 configured axes            |
-| `POST /log`          | `{axis, name, exp?, note?}`       | the new event + updated skill    |
-| `GET  /summary`      | `?user=`                          | levels + all-time/weekly counts  |
-| `GET  /octagon`      | `?user=`                          | radar-chart data                 |
-| `GET  /streak/{name}`| `?user=`                          | current daily streak             |
+| Method & path        | Body / params                          | Returns                          |
+|----------------------|----------------------------------------|----------------------------------|
+| `GET  /axes`         | —                                      | the 8 configured axes            |
+| `POST /log`          | `{axis, name, exp?, note?, seconds?}`  | the new event + updated skill    |
+| `GET  /summary`      | `?user=`                               | levels + all-time/weekly counts  |
+| `GET  /time`         | `?user=`                               | tracked time per period (below)  |
+| `GET  /octagon`      | `?user=`                               | radar-chart data                 |
+| `GET  /streak/{name}`| `?user=`                               | current daily streak             |
+
+`POST /log` with `seconds > 0` records a **timed session** (e.g. a tracked
+study block); exp then defaults to one point per minute. `GET /time` returns
+totals grouped by activity and by axis for each period:
+
+```json
+{ "periods": {
+    "today":      { "by_activity": {"study": 2700}, "by_axis": {"mind": 2700}, "total_seconds": 2700 },
+    "this_week":  { ... }, "this_month": { ... }, "ytd": { ... }, "all_time": { ... }
+} }
+```
 
 `?user=<id>` selects the character (single-user defaults to `me`).
 
