@@ -12,14 +12,14 @@ from rpgme.store import MemoryStore  # noqa: E402
 
 import handler  # noqa: E402
 
-# One shared in-memory engine per user so state persists across requests.
-_engines: dict = {}
+# One shared in-memory store per user so state + config persist across requests;
+# the engine is rebuilt per call from the store's config (mirrors production).
+_stores: dict = {}
 
 
 def _factory(user: str) -> Engine:
-    if user not in _engines:
-        _engines[user] = Engine(MemoryStore(user))
-    return _engines[user]
+    store = _stores.setdefault(user, MemoryStore(user))
+    return handler.engine_for(store)
 
 
 def _event(route, body=None, path_params=None, qs=None):
@@ -32,7 +32,7 @@ def _event(route, body=None, path_params=None, qs=None):
 
 
 def setup_function(_fn):
-    _engines.clear()
+    _stores.clear()
 
 
 def test_axes_route():
@@ -109,6 +109,50 @@ def test_log_with_client_id_is_idempotent():
     r2 = handler.handle(_event("POST /log", body=body), engine_factory=_factory)
     assert r2["statusCode"] == 200
     assert json.loads(r2["body"])["status"] == "duplicate"
+
+
+def _axes(n):
+    return [
+        {"key": f"a{i}", "label": f"Axis {i}", "description": "", "color": "#4C72B0"}
+        for i in range(n)
+    ]
+
+
+def test_put_config_sets_axes_and_get_reflects_it():
+    res = handler.handle(
+        _event("PUT /config", body={"axes": _axes(6)}), engine_factory=_factory
+    )
+    assert res["statusCode"] == 200
+    assert json.loads(res["body"])["count"] == 6
+
+    res = handler.handle(_event("GET /config"), engine_factory=_factory)
+    keys = [a["key"] for a in json.loads(res["body"])["axes"]]
+    assert keys == [f"a{i}" for i in range(6)]
+
+
+def test_config_rejects_out_of_range_counts():
+    for n in (5, 11):
+        res = handler.handle(
+            _event("PUT /config", body={"axes": _axes(n)}), engine_factory=_factory
+        )
+        assert res["statusCode"] == 400
+
+
+def test_sync_accepts_events_for_custom_axes_after_config():
+    # Configure custom axes, then sync an event referencing one of them.
+    handler.handle(_event("PUT /config", body={"axes": _axes(7)}), engine_factory=_factory)
+    res = handler.handle(
+        _event("POST /sync", body={"events": [
+            {"id": "e1", "axis": "a3", "name": "study", "exp": 20, "seconds": 1200},
+        ]}),
+        engine_factory=_factory,
+    )
+    assert res["statusCode"] == 200
+    assert json.loads(res["body"])["applied"] == ["e1"]
+
+    res = handler.handle(_event("GET /summary"), engine_factory=_factory)
+    oct_keys = {a["key"] for a in json.loads(res["body"])["octagon"]}
+    assert "a3" in oct_keys  # custom axis is part of the octagon
 
 
 def test_log_timed_session_and_time_route():

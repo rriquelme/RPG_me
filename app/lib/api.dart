@@ -61,6 +61,17 @@ class ApiClient {
     return TimePeriods.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// Replace the server-side axis config for this user (sent before sync so
+  /// custom axes are recognized).
+  Future<void> putConfig(List<Map<String, dynamic>> axes) async {
+    final res = await _http.put(
+      _uri('/config'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'axes': axes}),
+    );
+    _check(res);
+  }
+
   /// Idempotently push offline events. Returns the ids the server acknowledged
   /// as stored (applied this call) or already-present (duplicates) — both mean
   /// "safe to mark synced locally".

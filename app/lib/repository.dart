@@ -19,18 +19,39 @@ class SyncResult {
 class Repository {
   final LocalStore _store;
   List<Event> _events;
+  List<AxisDef> _axes;
   Settings settings;
 
-  Repository._(this._store, this._events, this.settings);
+  Repository._(this._store, this._events, this._axes, this.settings);
 
   static Future<Repository> create() async {
     final store = LocalStore();
     final events = await store.loadEvents();
+    final axes = await store.loadAxes();
     final settings = await Settings.load();
-    return Repository._(store, events, settings);
+    return Repository._(store, events, axes, settings);
   }
 
-  LocalEngine get _engine => LocalEngine(_events);
+  LocalEngine get _engine => LocalEngine(_events, _axes);
+
+  // --- axis config --------------------------------------------------------
+  List<AxisDef> get axesConfig => List.unmodifiable(_axes);
+
+  /// Persist an edited axis config. Enforces the 6–10 count and unique keys.
+  Future<void> saveAxes(List<AxisDef> axes) async {
+    if (axes.length < kMinAxes || axes.length > kMaxAxes) {
+      throw ArgumentError('The octagon needs between $kMinAxes and $kMaxAxes axes.');
+    }
+    final keys = axes.map((a) => a.key).toSet();
+    if (keys.length != axes.length) {
+      throw ArgumentError('Axis keys must be unique.');
+    }
+    if (axes.any((a) => a.label.trim().isEmpty)) {
+      throw ArgumentError('Every axis needs a name.');
+    }
+    _axes = List.of(axes);
+    await _store.saveAxes(_axes);
+  }
 
   // --- reads (async to fit the existing FutureBuilder screens) ------------
   Future<List<AxisStat>> axes() async => _engine.octagon();
@@ -79,6 +100,8 @@ class Repository {
 
     final api = ApiClient(baseUrl: settings.baseUrl, user: settings.user);
     try {
+      // Push the axis config first so the server recognizes custom axes.
+      await api.putConfig(_axes.map((a) => a.toJson()).toList());
       final acked = await api.sync(pending.map((e) => e.toSyncJson()).toList());
       for (final e in _events) {
         if (acked.contains(e.id)) e.synced = true;

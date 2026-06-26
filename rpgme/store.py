@@ -20,7 +20,7 @@ from __future__ import annotations
 import abc
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 class Store(abc.ABC):
@@ -31,6 +31,13 @@ class Store(abc.ABC):
 
     @abc.abstractmethod
     def save(self, state: Dict[str, Any]) -> None: ...
+
+    # Optional per-user axis config (None => use the default axes).
+    def load_config(self) -> Optional[List[Dict[str, Any]]]:
+        return None
+
+    def save_config(self, axes: List[Dict[str, Any]]) -> None:
+        raise NotImplementedError
 
 
 def empty_state(user: str = "me") -> Dict[str, Any]:
@@ -65,12 +72,19 @@ class MemoryStore(Store):
 
     def __init__(self, user: str = "me") -> None:
         self._state: Dict[str, Any] = empty_state(user)
+        self._config: Optional[List[Dict[str, Any]]] = None
 
     def load(self) -> Dict[str, Any]:
         return self._state
 
     def save(self, state: Dict[str, Any]) -> None:
         self._state = state
+
+    def load_config(self) -> Optional[List[Dict[str, Any]]]:
+        return self._config
+
+    def save_config(self, axes: List[Dict[str, Any]]) -> None:
+        self._config = list(axes)
 
 
 class DynamoStore(Store):
@@ -148,6 +162,22 @@ class DynamoStore(Store):
         events.sort(key=lambda e: e["timestamp"])
         self._known_event_ids = {e["id"] for e in events}
         return {"user": user, "skills": skills, "events": events}
+
+    def load_config(self) -> Optional[List[Dict[str, Any]]]:
+        import json
+
+        resp = self._table.get_item(Key={"PK": self._pk, "SK": "CONFIG"})
+        item = resp.get("Item")
+        if not item or "axes" not in item:
+            return None
+        return json.loads(item["axes"])
+
+    def save_config(self, axes: List[Dict[str, Any]]) -> None:
+        import json
+
+        self._table.put_item(
+            Item={"PK": self._pk, "SK": "CONFIG", "axes": json.dumps(axes)}
+        )
 
     def save(self, state: Dict[str, Any]) -> None:
         with self._table.batch_writer() as batch:
