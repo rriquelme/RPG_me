@@ -2,6 +2,7 @@ import 'api.dart';
 import 'local/event.dart';
 import 'local/local_engine.dart';
 import 'local/local_store.dart';
+import 'local/timer_entry.dart';
 import 'models.dart';
 import 'settings.dart';
 
@@ -65,6 +66,7 @@ class Repository {
     int? exp,
     String note = '',
     int seconds = 0,
+    DateTime? at,
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -74,11 +76,48 @@ class Repository {
       name: name.trim().toLowerCase(),
       exp: resolvedExp,
       note: note,
-      timestamp: DateTime.now(),
+      timestamp: at ?? DateTime.now(),
       seconds: seconds,
       synced: false,
     ));
     await _store.saveEvents(_events);
+  }
+
+  Future<Map<String, int>> secondsByAxis() async => _engine.secondsByAxis();
+  Future<Map<String, int>> dailyCounts() async => _engine.dailyCounts();
+  Future<Map<String, int>> dailySeconds() async => _engine.dailySeconds();
+
+  // --- timers (multiple, concurrent) --------------------------------------
+  Future<List<TimerEntry>> loadTimers() => _store.loadTimers();
+  Future<void> saveTimers(List<TimerEntry> timers) => _store.saveTimers(timers);
+
+  // --- CSV / Excel export -------------------------------------------------
+  String exportCsv() {
+    final label = {for (final a in _axes) a.key: a.label};
+    String two(int n) => n.toString().padLeft(2, '0');
+    String esc(String s) =>
+        (s.contains(',') || s.contains('"') || s.contains('\n'))
+            ? '"${s.replaceAll('"', '""')}"'
+            : s;
+    final rows = <String>[
+      'date,time,category,activity,seconds,hours,exp,note,synced'
+    ];
+    final sorted = [..._events]..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    for (final e in sorted) {
+      final d = e.timestamp;
+      rows.add([
+        '${d.year}-${two(d.month)}-${two(d.day)}',
+        '${two(d.hour)}:${two(d.minute)}',
+        esc(label[e.axisKey] ?? e.axisKey),
+        esc(e.name),
+        e.seconds.toString(),
+        (e.seconds / 3600).toStringAsFixed(2),
+        e.exp.toString(),
+        esc(e.note),
+        e.synced.toString(),
+      ].join(','));
+    }
+    return rows.join('\n');
   }
 
   // --- sync ---------------------------------------------------------------

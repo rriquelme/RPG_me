@@ -4,11 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'event.dart';
 import 'local_engine.dart';
+import 'timer_entry.dart';
 
-/// Persists the offline event log and axis config to device storage.
+/// Persists the offline event log, axis config, and running timers to device.
 class LocalStore {
   static const _kEvents = 'events_v1';
   static const _kAxes = 'axes_v1';
+  static const _kTimers = 'timers_v1';
 
   Future<List<Event>> loadEvents() async {
     final prefs = await SharedPreferences.getInstance();
@@ -37,5 +39,18 @@ class LocalStore {
   Future<void> saveAxes(List<AxisDef> axes) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kAxes, jsonEncode(axes.map((a) => a.toJson()).toList()));
+  }
+
+  Future<List<TimerEntry>> loadTimers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kTimers);
+    if (raw == null || raw.isEmpty) return [];
+    final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    return list.map(TimerEntry.fromJson).toList();
+  }
+
+  Future<void> saveTimers(List<TimerEntry> timers) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kTimers, jsonEncode(timers.map((t) => t.toJson()).toList()));
   }
 }
