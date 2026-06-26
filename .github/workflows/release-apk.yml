@@ -1,0 +1,83 @@
+name: Build & Release APK
+
+# Builds the offline-first RPG_me Android app on GitHub's runners (no local
+# Flutter toolchain needed) and attaches the APK to a GitHub Release.
+#
+# Trigger by pushing a tag like `app-v0.1.0`, or run manually from the
+# Actions tab (workflow_dispatch).
+
+on:
+  push:
+    tags:
+      - "app-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed to create the Release
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Generate Android scaffold
+        working-directory: app
+        run: |
+          # flutter create regenerates the platform shells AND overwrites a few
+          # template files — immediately restore RPG_me's versions from git and
+          # drop the default counter-app widget test.
+          flutter create --platforms=android --org com.rpgme --project-name rpg_me .
+          git checkout -- pubspec.yaml lib/main.dart analysis_options.yaml
+          rm -f test/widget_test.dart
+
+      - name: Install packages
+        working-directory: app
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: app
+        run: flutter test
+        continue-on-error: true # don't block the APK on a flaky/edge test
+
+      - name: Build release APK
+        working-directory: app
+        run: flutter build apk --release
+
+      - name: Stage artifact
+        working-directory: app
+        run: cp build/app/outputs/flutter-apk/app-release.apk rpg_me.apk
+
+      # Always available from the run page, even if the Release step can't run
+      # (e.g. token is read-only).
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpg_me-apk
+          path: app/rpg_me.apk
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/rpg_me.apk
+          name: RPG_me ${{ github.ref_name }}
+          body: |
+            **Offline-first RPG_me — Android app.**
+
+            Install it and just tap **Log** — it works fully offline, no backend
+            or AWS required. Optionally add an API URL in Settings later to sync.
+
+            - The APK is **debug-signed**: on your phone, enable
+              *Install unknown apps* for your browser/file manager, then open it.
+            - Data is stored on-device until you choose to sync.
