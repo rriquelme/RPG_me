@@ -80,6 +80,37 @@ def test_unknown_route_404():
     assert res["statusCode"] == 404
 
 
+def test_sync_is_idempotent():
+    batch = {
+        "events": [
+            {"id": "a1", "axis": "mind", "name": "study", "exp": 45, "seconds": 2700},
+            {"id": "a2", "axis": "health", "name": "gym", "exp": 10, "seconds": 0},
+        ]
+    }
+    r1 = handler.handle(_event("POST /sync", body=batch), engine_factory=_factory)
+    assert r1["statusCode"] == 200
+    assert sorted(json.loads(r1["body"])["applied"]) == ["a1", "a2"]
+
+    # Re-sync the same batch: all duplicates, totals unchanged.
+    r2 = handler.handle(_event("POST /sync", body=batch), engine_factory=_factory)
+    b2 = json.loads(r2["body"])
+    assert b2["applied"] == []
+    assert sorted(b2["duplicates"]) == ["a1", "a2"]
+    assert b2["total_events"] == 2
+
+    res = handler.handle(_event("GET /summary"), engine_factory=_factory)
+    assert json.loads(res["body"])["total_events"] == 2  # not 4
+
+
+def test_log_with_client_id_is_idempotent():
+    body = {"id": "x9", "axis": "mind", "name": "read"}
+    r1 = handler.handle(_event("POST /log", body=body), engine_factory=_factory)
+    assert r1["statusCode"] == 201
+    r2 = handler.handle(_event("POST /log", body=body), engine_factory=_factory)
+    assert r2["statusCode"] == 200
+    assert json.loads(r2["body"])["status"] == "duplicate"
+
+
 def test_log_timed_session_and_time_route():
     res = handler.handle(
         _event("POST /log", body={"axis": "mind", "name": "study", "seconds": 1800}),

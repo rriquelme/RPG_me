@@ -61,6 +61,22 @@ class ApiClient {
     return TimePeriods.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// Idempotently push offline events. Returns the ids the server acknowledged
+  /// as stored (applied this call) or already-present (duplicates) — both mean
+  /// "safe to mark synced locally".
+  Future<Set<String>> sync(List<Map<String, dynamic>> events) async {
+    final res = await _http.post(
+      _uri('/sync'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'events': events}),
+    );
+    _check(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final applied = ((body['applied'] ?? []) as List).cast<String>();
+    final duplicates = ((body['duplicates'] ?? []) as List).cast<String>();
+    return {...applied, ...duplicates};
+  }
+
   Future<int> streak(String name) async {
     final res = await _http.get(_uri('/streak/$name'));
     _check(res);

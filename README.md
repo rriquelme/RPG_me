@@ -58,9 +58,11 @@ from that event log — so adding "how often" stats later is just another query.
       exposes the *same* engine over REST. Deployable with `sam build && sam
       deploy`. The engine code was reused unchanged. See
       [backend/README.md](backend/README.md).
-- [x] **Phase 3 — Flutter APK** (see [`app/`](app/)): a mobile app that calls
-      the API, logs routines with a tap, and draws the octagon natively
-      (`fl_chart` RadarChart). Builds a real Android `.apk`. See
+- [x] **Phase 3 — Flutter APK** (see [`app/`](app/)): an **offline-first**
+      mobile app that logs routines with a tap and draws the octagon natively
+      (`fl_chart` RadarChart). Works with no backend (local event log + a Dart
+      port of the engine); an optional idempotent **Sync** pushes history to
+      the Phase 2 API. Builds a real Android `.apk`. See
       [app/README.md](app/README.md).
 
 ## Tests

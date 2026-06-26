@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../api.dart';
 import '../models.dart';
+import '../repository.dart';
 
 /// Shows tracked time per period (today / week / month / YTD / all-time),
 /// either across all activities or drilled into one.
 class TimeScreen extends StatefulWidget {
-  final ApiClient api;
-  const TimeScreen({super.key, required this.api});
+  final Repository repo;
+  const TimeScreen({super.key, required this.repo});
 
   @override
   State<TimeScreen> createState() => _TimeScreenState();
@@ -20,11 +20,11 @@ class _TimeScreenState extends State<TimeScreen> {
   @override
   void initState() {
     super.initState();
-    _future = widget.api.time();
+    _future = widget.repo.time();
   }
 
   Future<void> _refresh() async {
-    setState(() => _future = widget.api.time());
+    setState(() => _future = widget.repo.time());
     await _future;
   }
 

@@ -50,6 +50,10 @@ class Engine:
         }
 
     # --- logging events ---------------------------------------------------
+    def has_event(self, event_id: str) -> bool:
+        """Whether an event id is already recorded (used for idempotent sync)."""
+        return any(ev["id"] == event_id for ev in self.state["events"])
+
     def log(
         self,
         axis_key: str,
@@ -58,19 +62,22 @@ class Engine:
         note: str = "",
         timestamp: Optional[str] = None,
         seconds: int = 0,
+        event_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Record one occurrence of a routine/activity and award exp.
 
         ``name`` is the thing you did (e.g. "gym", "read", "meditate"); it's
         what the counters/frequency stats are grouped by. ``seconds`` is the
         optional tracked duration of a timed session (0 for an instant tally).
+        ``event_id`` lets an offline client supply a stable id so re-syncing the
+        same event is a no-op instead of a double count.
         """
         if axis_key not in self._axis_by_key:
             raise ValueError(
                 f"Unknown axis '{axis_key}'. Known: {list(self._axis_by_key)}"
             )
         event = {
-            "id": uuid.uuid4().hex,
+            "id": event_id or uuid.uuid4().hex,
             "axis_key": axis_key,
             "name": name.strip().lower(),
             "exp": int(exp),
@@ -85,6 +92,32 @@ class Engine:
         self._persist_skill(skill)
         return event
 
+    def apply_events(self, events: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        """Idempotently apply a batch of client events (offline sync push).
+
+        Each event must carry a stable ``id``; already-known ids are skipped.
+        Exp/seconds/timestamp are taken from the client verbatim so local and
+        server agree. Returns the ids that were applied vs. already present.
+        """
+        applied: List[str] = []
+        duplicates: List[str] = []
+        for ev in events:
+            ev_id = ev.get("id")
+            if ev_id and self.has_event(ev_id):
+                duplicates.append(ev_id)
+                continue
+            stored = self.log(
+                ev["axis"],
+                ev["name"],
+                exp=int(ev.get("exp", 10)),
+                note=ev.get("note", ""),
+                timestamp=ev.get("timestamp"),
+                seconds=int(ev.get("seconds", 0)),
+                event_id=ev_id,
+            )
+            applied.append(stored["id"])
+        return {"applied": applied, "duplicates": duplicates}
+
     def log_time(
         self,
         axis_key: str,
@@ -93,13 +126,20 @@ class Engine:
         exp: Optional[int] = None,
         note: str = "",
         timestamp: Optional[str] = None,
+        event_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Log a timed session. Exp defaults to one point per tracked minute."""
         seconds = max(0, int(seconds))
         if exp is None:
             exp = max(1, round(seconds / 60))
         return self.log(
-            axis_key, name, exp=exp, note=note, timestamp=timestamp, seconds=seconds
+            axis_key,
+            name,
+            exp=exp,
+            note=note,
+            timestamp=timestamp,
+            seconds=seconds,
+            event_id=event_id,
         )
 
     # --- the octagon ------------------------------------------------------

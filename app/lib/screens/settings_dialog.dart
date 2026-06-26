@@ -11,15 +11,21 @@ Future<Settings?> showSettingsDialog(BuildContext context, Settings current) {
   return showDialog<Settings>(
     context: context,
     builder: (context) => AlertDialog(
-      title: const Text('Connect to your backend'),
+      title: const Text('Settings'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const Text(
+            'The app works fully offline. Add an API URL only if you want to '
+            'sync this device to a backend.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: urlController,
             keyboardType: TextInputType.url,
             decoration: const InputDecoration(
-              labelText: 'API base URL',
+              labelText: 'API base URL (optional)',
               hintText: 'https://abc123.execute-api.us-east-1.amazonaws.com',
             ),
           ),

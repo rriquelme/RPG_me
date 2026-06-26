@@ -3,15 +3,15 @@ import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 
-import '../api.dart';
 import '../models.dart';
+import '../repository.dart';
 
 /// A stopwatch. Start it when you begin (e.g. studying); when you stop you get
 /// a confirmation dialog to file the elapsed time under a category.
 class TimerScreen extends StatefulWidget {
-  final ApiClient api;
+  final Repository repo;
   final String? suggestedName;
-  const TimerScreen({super.key, required this.api, this.suggestedName});
+  const TimerScreen({super.key, required this.repo, this.suggestedName});
 
   @override
   State<TimerScreen> createState() => _TimerScreenState();
@@ -25,7 +25,7 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
-    widget.api.axes().then((a) {
+    widget.repo.axes().then((a) {
       if (mounted) setState(() => _axes = a);
     }).catchError((_) {});
   }
@@ -63,7 +63,7 @@ class _TimerScreenState extends State<TimerScreen> {
       context: context,
       barrierDismissible: false,
       builder: (_) => _SaveSessionDialog(
-        api: widget.api,
+        repo: widget.repo,
         axes: _axes,
         seconds: seconds,
         suggestedName: widget.suggestedName,
@@ -134,12 +134,12 @@ class _TimerScreenState extends State<TimerScreen> {
 
 /// Confirmation: file the elapsed time under an axis + activity name.
 class _SaveSessionDialog extends StatefulWidget {
-  final ApiClient api;
+  final Repository repo;
   final List<AxisStat> axes;
   final int seconds;
   final String? suggestedName;
   const _SaveSessionDialog({
-    required this.api,
+    required this.repo,
     required this.axes,
     required this.seconds,
     this.suggestedName,
@@ -173,7 +173,7 @@ class _SaveSessionDialogState extends State<_SaveSessionDialog> {
       _error = null;
     });
     try {
-      await widget.api.log(_axis!, name, seconds: widget.seconds);
+      await widget.repo.log(_axis!, name, seconds: widget.seconds);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {

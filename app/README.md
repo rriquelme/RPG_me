@@ -1,9 +1,13 @@
 # RPG_me — Mobile app (Phase 3)
 
-A Flutter app that talks to the [Phase 2 backend](../backend/README.md), logs
-your routines with a tap, and draws your octagon natively with
-[`fl_chart`](https://pub.dev/packages/fl_chart)'s RadarChart. One codebase →
-a real Android `.apk`.
+A Flutter app that logs your routines with a tap and draws your octagon
+natively with [`fl_chart`](https://pub.dev/packages/fl_chart)'s RadarChart.
+One codebase → a real Android `.apk`.
+
+**It runs fully offline.** Everything is computed on-device from a local event
+log, so you can use it immediately with no backend. When you later deploy the
+[Phase 2 backend](../backend/README.md), add its URL in Settings and tap
+**Sync** to push your history up.
 
 ```
  ┌─────────────────────────────┐
@@ -11,12 +15,27 @@ a real Android `.apk`.
  │   └ FAB "Log" → LogScreen   │   pick axis · name · exp slider
  │   └ ⏱ Timer → TimerScreen   │   stopwatch → confirm → file under a category
  │   └ 📊 Time → TimeScreen     │   tracked time: today/week/month/YTD/all-time
- │   └ ⚙ Settings → API URL    │   stored via shared_preferences
+ │   └ 🔄 Sync (badge = pending)│   push unsynced events to the backend
+ │   └ ⚙ Settings → API URL    │   optional, only needed for sync
  └──────────────┬──────────────┘
-                │ ApiClient (http)
-                ▼
-   GET /summary · /axes · /time · POST /log (seconds) · GET /streak/{name}
+                │ Repository  (local-first)
+        ┌───────┴────────┐
+        ▼                ▼
+   LocalEngine      ApiClient (sync only)
+   + LocalStore     POST /sync (idempotent, by client event id)
+   (device storage)
 ```
+
+## Offline-first & sync
+
+- **Reads & writes are local.** `Repository` wraps a `LocalEngine` (a Dart port
+  of the backend engine: same exp curve, octagon, counts, streaks, time
+  periods) over events persisted with `shared_preferences`. No network needed.
+- **Each event gets a stable client id** and a `synced` flag.
+- **Sync is push-only and idempotent.** Tapping 🔄 sends unsynced events to
+  `POST /sync`; the server skips ids it already has, so re-syncing never
+  double-counts. Acknowledged events are marked synced locally.
+- An **offline banner** and a **pending-count badge** show sync state.
 
 ## What's committed vs. generated
 
@@ -27,12 +46,17 @@ app/
   pubspec.yaml          dependencies (http, fl_chart, shared_preferences)
   lib/
     main.dart           app entry + theme
-    models.dart         AxisStat / Summary / TimePeriods (mirror the API JSON)
-    settings.dart       persisted API base URL + user id
-    api.dart            ApiClient (summary, axes, log, time, streak)
+    models.dart         AxisStat / Summary / TimePeriods (shared shapes)
+    settings.dart       persisted API base URL (optional) + user id
+    repository.dart     local-first data layer + sync()
+    local/
+      event.dart        on-device event + stable id + synced flag
+      local_engine.dart Dart port of the engine (octagon, counts, time…)
+      local_store.dart  shared_preferences persistence
+    api.dart            ApiClient (used by sync)
     widgets/octagon_chart.dart    the 8-axis RadarChart
     screens/            home, log, timer (stopwatch), time stats, settings
-  test/models_test.dart JSON-parsing tests (run with `flutter test`)
+  test/                 local_engine + model parsing tests (`flutter test`)
 ```
 
 The platform shells (`android/`, `ios/`, …) are **generated** and git-ignored.
@@ -60,22 +84,17 @@ Install the APK on your phone (`flutter install`, or copy the file over).
 
 ## First run
 
-The app opens a **Settings** dialog. Paste:
+Just **Log** something — no setup required. The app starts offline, saves to
+the device, and the octagon grows immediately.
+
+When you want your data on a server, open ⚙ **Settings** and paste:
 
 - **API base URL** — the `ApiUrl` from `sam deploy`'s stack outputs
   (e.g. `https://abc123.execute-api.us-east-1.amazonaws.com`).
 - **Character / user id** — anything; defaults to `me`.
 
-Then tap **Log** to record a routine and watch the octagon grow. Pull down to
-refresh.
+Then tap 🔄 **Sync** to push your offline history up. Syncing is safe to repeat.
 
 > **Plaintext HTTP note:** the API is HTTPS, so no extra Android config is
 > needed. If you ever point the app at a plain-`http://` dev server, add a
 > network-security-config exception to the generated `AndroidManifest.xml`.
-
-## Try it without a backend
-
-To demo the UI before deploying AWS, run the backend locally with
-`sam local start-api` (see [../backend/README.md](../backend/README.md)) and
-set the base URL to the printed `http://127.0.0.1:3000` (allow cleartext as
-noted above).

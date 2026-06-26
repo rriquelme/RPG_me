@@ -6,8 +6,10 @@ file only translates HTTP <-> engine calls.
 
 Routes (API Gateway HTTP API, payload v2):
     GET  /axes                  list the configured octagon axes
-    POST /log                   {axis, name, exp?, note?, seconds?} -> log a
-                                routine; seconds>0 records a timed session
+    POST /log                   {axis, name, exp?, note?, seconds?, id?} -> log
+                                a routine; seconds>0 records a timed session
+    POST /sync                  {events:[...]} -> idempotently apply offline
+                                events (by client id)
     GET  /summary               levels + counts snapshot (dashboard payload)
     GET  /time                  tracked time by activity/axis per period
     GET  /octagon               just the radar-chart data
@@ -79,6 +81,10 @@ def handle(event: Dict[str, Any], engine_factory: Callable[[str], Engine] = make
 
         if route == "POST /log":
             body = _body(event)
+            event_id = body.get("id")
+            if event_id and eng.has_event(event_id):
+                # Idempotent: a retried offline event is already recorded.
+                return _resp(200, {"status": "duplicate", "id": event_id})
             seconds = int(body.get("seconds", 0))
             if seconds > 0:
                 # Timed session: exp defaults to one point per tracked minute.
@@ -89,6 +95,7 @@ def handle(event: Dict[str, Any], engine_factory: Callable[[str], Engine] = make
                     seconds,
                     exp=int(exp) if exp is not None else None,
                     note=body.get("note", ""),
+                    event_id=event_id,
                 )
             else:
                 ev = eng.log(
@@ -96,12 +103,22 @@ def handle(event: Dict[str, Any], engine_factory: Callable[[str], Engine] = make
                     body["name"],
                     exp=int(body.get("exp", 10)),
                     note=body.get("note", ""),
+                    event_id=event_id,
                 )
             eng.save()
             return _resp(201, {"event": ev, "skill": eng.skill(ev["axis_key"]).to_dict()})
 
         if route == "GET /summary":
             return _resp(200, eng.summary())
+
+        if route == "POST /sync":
+            body = _body(event)
+            events = body.get("events", [])
+            if not isinstance(events, list):
+                return _resp(400, {"error": "'events' must be a list"})
+            result = eng.apply_events(events)
+            eng.save()
+            return _resp(200, {**result, "total_events": len(eng.state["events"])})
 
         if route == "GET /time":
             return _resp(200, {"periods": eng.time_periods()})

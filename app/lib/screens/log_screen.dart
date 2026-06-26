@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../api.dart';
 import '../models.dart';
+import '../repository.dart';
 
 /// Form to log one routine/activity: pick an axis, name it, set exp.
 class LogScreen extends StatefulWidget {
-  final ApiClient api;
-  const LogScreen({super.key, required this.api});
+  final Repository repo;
+  const LogScreen({super.key, required this.repo});
 
   @override
   State<LogScreen> createState() => _LogScreenState();
@@ -29,7 +29,7 @@ class _LogScreenState extends State<LogScreen> {
 
   Future<void> _loadAxes() async {
     try {
-      final axes = await widget.api.axes();
+      final axes = await widget.repo.axes();
       setState(() {
         _axes = axes;
         _selectedAxis = axes.isNotEmpty ? axes.first.key : null;
@@ -46,7 +46,7 @@ class _LogScreenState extends State<LogScreen> {
       _error = null;
     });
     try {
-      await widget.api.log(_selectedAxis!, _nameController.text.trim(), exp: _exp);
+      await widget.repo.log(_selectedAxis!, _nameController.text.trim(), exp: _exp);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {

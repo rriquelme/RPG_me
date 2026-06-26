@@ -54,6 +54,9 @@ Resources:
         Log:
           Type: HttpApi
           Properties: { Path: /log, Method: POST }
+        Sync:
+          Type: HttpApi
+          Properties: { Path: /sync, Method: POST }
         Summary:
           Type: HttpApi
           Properties: { Path: /summary, Method: GET }

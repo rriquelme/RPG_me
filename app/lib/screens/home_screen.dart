@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../api.dart';
 import '../models.dart';
+import '../repository.dart';
 import '../settings.dart';
 import '../widgets/octagon_chart.dart';
 import 'log_screen.dart';
@@ -17,9 +17,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  Settings? _settings;
-  ApiClient? _api;
+  Repository? _repo;
   Future<Summary>? _summaryFuture;
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -28,99 +28,119 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _boot() async {
-    final settings = await Settings.load();
-    setState(() => _settings = settings);
-    if (settings.isConfigured) {
-      _rebuildApi(settings);
-    } else if (mounted) {
-      // First launch: ask for the backend URL.
-      WidgetsBinding.instance.addPostFrameCallback((_) => _openSettings());
-    }
+    final repo = await Repository.create();
+    setState(() {
+      _repo = repo;
+      _summaryFuture = repo.summary();
+    });
   }
 
-  void _rebuildApi(Settings settings) {
-    _api?.close();
-    _api = ApiClient(baseUrl: settings.baseUrl, user: settings.user);
-    setState(() => _summaryFuture = _api!.summary());
-  }
-
-  Future<void> _refresh() async {
-    if (_api != null) {
-      setState(() => _summaryFuture = _api!.summary());
-      await _summaryFuture;
+  void _refresh() {
+    if (_repo != null) {
+      setState(() => _summaryFuture = _repo!.summary());
     }
   }
 
   Future<void> _openSettings() async {
-    final updated = await showSettingsDialog(context, _settings ?? const Settings(baseUrl: '', user: 'me'));
+    if (_repo == null) return;
+    final updated = await showSettingsDialog(context, _repo!.settings);
     if (updated != null) {
-      setState(() => _settings = updated);
-      if (updated.isConfigured) _rebuildApi(updated);
+      await _repo!.updateSettings(updated);
+      setState(() {});
     }
   }
 
   Future<void> _openLog() async {
-    if (_api == null) return;
+    if (_repo == null) return;
     final logged = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => LogScreen(api: _api!)),
+      MaterialPageRoute(builder: (_) => LogScreen(repo: _repo!)),
     );
     if (logged == true) _refresh();
   }
 
   Future<void> _openTimer() async {
-    if (_api == null) return;
+    if (_repo == null) return;
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => TimerScreen(api: _api!)),
+      MaterialPageRoute(builder: (_) => TimerScreen(repo: _repo!)),
     );
     if (saved == true) _refresh();
   }
 
   void _openTime() {
-    if (_api == null) return;
+    if (_repo == null) return;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => TimeScreen(api: _api!)),
+      MaterialPageRoute(builder: (_) => TimeScreen(repo: _repo!)),
     );
+  }
+
+  Future<void> _sync() async {
+    final repo = _repo;
+    if (repo == null) return;
+    if (!repo.settings.isConfigured) {
+      await _openSettings();
+      if (!repo.settings.isConfigured) return;
+    }
+    setState(() => _syncing = true);
+    final result = await repo.sync();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    final msg = result.ok
+        ? (result.pushed == 0
+            ? 'Already up to date.'
+            : 'Synced ${result.pushed} event(s).')
+        : 'Sync failed: ${result.error}';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    _refresh();
   }
 
   @override
   Widget build(BuildContext context) {
+    final repo = _repo;
+    final unsynced = repo?.unsyncedCount ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('RPG_me'),
-        actions: [
-          if (_api != null) ...[
-            IconButton(
-              icon: const Icon(Icons.timer_outlined),
-              tooltip: 'Timer',
-              onPressed: _openTimer,
-            ),
-            IconButton(
-              icon: const Icon(Icons.bar_chart),
-              tooltip: 'Time tracked',
-              onPressed: _openTime,
-            ),
-          ],
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _openSettings,
-          ),
-        ],
+        actions: repo == null
+            ? null
+            : [
+                IconButton(
+                  icon: const Icon(Icons.timer_outlined),
+                  tooltip: 'Timer',
+                  onPressed: _openTimer,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bar_chart),
+                  tooltip: 'Time tracked',
+                  onPressed: _openTime,
+                ),
+                _SyncButton(
+                  syncing: _syncing,
+                  unsynced: unsynced,
+                  onPressed: _sync,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
+                  onPressed: _openSettings,
+                ),
+              ],
       ),
-      floatingActionButton: _api == null
+      floatingActionButton: repo == null
           ? null
           : FloatingActionButton.extended(
               onPressed: _openLog,
               icon: const Icon(Icons.add),
               label: const Text('Log'),
             ),
-      body: _settings == null
+      body: repo == null
           ? const Center(child: CircularProgressIndicator())
-          : !(_settings!.isConfigured)
-              ? _NotConfigured(onConfigure: _openSettings)
-              : RefreshIndicator(
-                  onRefresh: _refresh,
-                  child: _buildBody(),
-                ),
+          : Column(
+              children: [
+                if (!repo.settings.isConfigured)
+                  _OfflineBanner(unsynced: unsynced),
+                Expanded(child: _buildBody()),
+              ],
+            ),
     );
   }
 
@@ -132,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return _ErrorView(error: snap.error.toString(), onRetry: _refresh);
+          return Center(child: Text(snap.error.toString()));
         }
         final summary = snap.data!;
         final weekly = summary.countsLast7Days.entries.toList()
@@ -168,52 +188,59 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _NotConfigured extends StatelessWidget {
-  final VoidCallback onConfigure;
-  const _NotConfigured({required this.onConfigure});
+/// Sync icon with an unsynced-count badge.
+class _SyncButton extends StatelessWidget {
+  final bool syncing;
+  final int unsynced;
+  final VoidCallback onPressed;
+  const _SyncButton({
+    required this.syncing,
+    required this.unsynced,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'Connect the app to your RPG_me backend to get started.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(onPressed: onConfigure, child: const Text('Configure')),
-          ],
-        ),
-      ),
+    final icon = syncing
+        ? const SizedBox(
+            width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        : const Icon(Icons.sync);
+    return IconButton(
+      tooltip: unsynced > 0 ? 'Sync ($unsynced pending)' : 'Sync',
+      onPressed: syncing ? null : onPressed,
+      icon: unsynced > 0
+          ? Badge(label: Text('$unsynced'), child: icon)
+          : icon,
     );
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  final String error;
-  final Future<void> Function() onRetry;
-  const _ErrorView({required this.error, required this.onRetry});
+/// Shown when no backend is configured — the app is running purely offline.
+class _OfflineBanner extends StatelessWidget {
+  final int unsynced;
+  const _OfflineBanner({required this.unsynced});
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      children: [
-        const SizedBox(height: 80),
-        const Icon(Icons.error_outline, size: 48),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(error, textAlign: TextAlign.center),
-        ),
-        const SizedBox(height: 16),
-        Center(child: FilledButton(onPressed: onRetry, child: const Text('Retry'))),
-      ],
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.secondaryContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(Icons.cloud_off, size: 18, color: scheme.onSecondaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              unsynced > 0
+                  ? 'Offline · $unsynced event(s) saved on this device'
+                  : 'Offline · data saved on this device. Add an API URL to sync.',
+              style: TextStyle(color: scheme.onSecondaryContainer, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
