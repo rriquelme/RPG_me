@@ -5,7 +5,9 @@ business logic lives entirely in the storage-agnostic ``rpgme.Engine``; this
 file only translates HTTP <-> engine calls.
 
 Routes (API Gateway HTTP API, payload v2):
-    GET  /axes                  list the configured octagon axes
+    GET  /axes                  list the user's octagon axes
+    GET  /config                same as /axes (the editable axis config)
+    PUT  /config                {axes:[...]} -> replace the axis config (6-10)
     POST /log                   {axis, name, exp?, note?, seconds?, id?} -> log
                                 a routine; seconds>0 records a timed session
     POST /sync                  {events:[...]} -> idempotently apply offline
@@ -26,16 +28,25 @@ import json
 import os
 from typing import Any, Callable, Dict
 
-from rpgme.config import load_axes
 from rpgme.engine import Engine
+from rpgme.models import Axis
 from rpgme.store import DynamoStore
 
 TABLE_NAME = os.environ.get("TABLE_NAME", "rpg_me")
 DEFAULT_USER = os.environ.get("DEFAULT_USER", "me")
 
+MIN_AXES, MAX_AXES = 6, 10
+
+
+def engine_for(store) -> Engine:
+    """Build an engine using the store's per-user axis config (or defaults)."""
+    cfg = store.load_config()
+    axes = [Axis.from_dict(a) for a in cfg] if cfg else None
+    return Engine(store, axes=axes)
+
 
 def make_engine(user: str) -> Engine:
-    return Engine(DynamoStore(table_name=TABLE_NAME, user=user))
+    return engine_for(DynamoStore(table_name=TABLE_NAME, user=user))
 
 
 def _resp(status: int, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -74,10 +85,21 @@ def handle(event: Dict[str, Any], engine_factory: Callable[[str], Engine] = make
     path_params = event.get("pathParameters") or {}
 
     try:
-        if route == "GET /axes":
-            return _resp(200, {"axes": [a.to_dict() for a in load_axes()]})
-
         eng = engine_factory(user)
+
+        if route == "GET /axes" or route == "GET /config":
+            return _resp(200, {"axes": [a.to_dict() for a in eng.axes]})
+
+        if route == "PUT /config" or route == "POST /config":
+            body = _body(event)
+            axes = body.get("axes", [])
+            if not isinstance(axes, list) or not (MIN_AXES <= len(axes) <= MAX_AXES):
+                return _resp(400, {"error": f"axes must be a list of {MIN_AXES}-{MAX_AXES} items"})
+            keys = [a.get("key") for a in axes]
+            if any(not k for k in keys) or len(set(keys)) != len(keys):
+                return _resp(400, {"error": "each axis needs a unique 'key'"})
+            eng.store.save_config(axes)
+            return _resp(200, {"axes": axes, "count": len(axes)})
 
         if route == "POST /log":
             body = _body(event)

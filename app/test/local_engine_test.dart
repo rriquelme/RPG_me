@@ -54,6 +54,29 @@ void main() {
     expect(today.totalSeconds, 2700);
   });
 
+  test('octagon honors a custom 6-axis config', () {
+    final axes = const [
+      AxisDef('a', 'A', '', '#DD5555'),
+      AxisDef('b', 'B', '', '#4C72B0'),
+      AxisDef('c', 'C', '', '#55883B'),
+      AxisDef('d', 'D', '', '#E8A33D'),
+      AxisDef('e', 'E', '', '#2E8B8B'),
+      AxisDef('f', 'F', '', '#9457A0'),
+    ];
+    final eng = LocalEngine([ev('c', 'thing', exp: 75)], axes);
+    final oct = eng.octagon();
+    expect(oct.length, 6);
+    expect({for (final a in oct) a.key: a.level}['c'], 2);
+  });
+
+  test('AxisDef round-trips through json', () {
+    const a = AxisDef('study', 'Study', 'desc', '#4C72B0');
+    final back = AxisDef.fromJson(a.toJson());
+    expect(back.key, 'study');
+    expect(back.label, 'Study');
+    expect(back.colorHex, '#4C72B0');
+  });
+
   test('ytd excludes prior-year events', () {
     final now = DateTime.now();
     final lastYear = DateTime(now.year - 1, 6, 1, 12);

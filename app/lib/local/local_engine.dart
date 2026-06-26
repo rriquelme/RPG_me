@@ -1,6 +1,10 @@
 import '../models.dart';
 import 'event.dart';
 
+/// The octagon supports between 6 and 10 axes.
+const int kMinAxes = 6;
+const int kMaxAxes = 10;
+
 /// One configured octagon axis (mirrors the backend's data/config.json).
 class AxisDef {
   final String key;
@@ -8,6 +12,20 @@ class AxisDef {
   final String description;
   final String colorHex;
   const AxisDef(this.key, this.label, this.description, this.colorHex);
+
+  AxisDef copyWith({String? label, String? description, String? colorHex}) =>
+      AxisDef(key, label ?? this.label, description ?? this.description,
+          colorHex ?? this.colorHex);
+
+  Map<String, dynamic> toJson() =>
+      {'key': key, 'label': label, 'description': description, 'color': colorHex};
+
+  factory AxisDef.fromJson(Map<String, dynamic> j) => AxisDef(
+        j['key'] as String,
+        (j['label'] ?? j['key']) as String,
+        (j['description'] ?? '') as String,
+        (j['color'] ?? '#4C72B0') as String,
+      );
 }
 
 /// The default 8 axes — kept in sync with the backend defaults so an offline
@@ -21,6 +39,13 @@ const List<AxisDef> kDefaultAxes = [
   AxisDef('creativity', 'Creativity', 'Making, art, music, writing', '#9457A0'),
   AxisDef('discipline', 'Discipline', 'Habits, consistency, willpower', '#555555'),
   AxisDef('spirit', 'Spirit', 'Meaning, mindfulness, rest', '#C77DB0'),
+];
+
+/// Palette offered when picking an axis colour (keeps a color-picker dep out).
+const List<String> kAxisPalette = [
+  '#DD5555', '#4C72B0', '#55883B', '#E8A33D', '#2E8B8B',
+  '#9457A0', '#555555', '#C77DB0', '#E0658A', '#3DA5D9',
+  '#6AA84F', '#B5651D',
 ];
 
 const int kBaseExpPerLevel = 50;
@@ -55,14 +80,15 @@ int expIntoLevel(int totalExp) {
 /// streaks, and time totals from a list of [Event]s.
 class LocalEngine {
   final List<Event> events;
-  LocalEngine(this.events);
+  final List<AxisDef> axes;
+  LocalEngine(this.events, [this.axes = kDefaultAxes]);
 
   // --- skills / octagon ---------------------------------------------------
   int _totalExp(String axisKey) =>
       events.where((e) => e.axisKey == axisKey).fold(0, (a, e) => a + e.exp);
 
   List<AxisStat> octagon() {
-    return kDefaultAxes.map((axis) {
+    return axes.map((axis) {
       final total = _totalExp(axis.key);
       return AxisStat(
         key: axis.key,

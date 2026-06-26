@@ -4,6 +4,7 @@ import '../models.dart';
 import '../repository.dart';
 import '../settings.dart';
 import '../widgets/octagon_chart.dart';
+import 'axes_config_screen.dart';
 import 'log_screen.dart';
 import 'settings_dialog.dart';
 import 'time_screen.dart';
@@ -73,6 +74,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _openAxesConfig() async {
+    if (_repo == null) return;
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => AxesConfigScreen(repo: _repo!)),
+    );
+    if (changed == true) _refresh();
+  }
+
   Future<void> _sync() async {
     final repo = _repo;
     if (repo == null) return;
@@ -117,6 +126,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   syncing: _syncing,
                   unsynced: unsynced,
                   onPressed: _sync,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.tune),
+                  tooltip: 'Edit axes',
+                  onPressed: _openAxesConfig,
                 ),
                 IconButton(
                   icon: const Icon(Icons.settings),

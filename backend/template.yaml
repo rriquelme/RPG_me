@@ -51,6 +51,12 @@ Resources:
         Axes:
           Type: HttpApi
           Properties: { Path: /axes, Method: GET }
+        GetConfig:
+          Type: HttpApi
+          Properties: { Path: /config, Method: GET }
+        PutConfig:
+          Type: HttpApi
+          Properties: { Path: /config, Method: PUT }
         Log:
           Type: HttpApi
           Properties: { Path: /log, Method: POST }
