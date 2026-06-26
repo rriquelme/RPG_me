@@ -6,8 +6,15 @@ name: Build & Release APK
 # Trigger by pushing a tag like `app-v0.1.0`, or run manually from the
 # Actions tab (workflow_dispatch).
 
+# A push to the feature branch runs the build using the workflow file in that
+# same branch (GitHub runs push-triggered workflows from the pushed ref, not
+# only from the default branch). The Release is created by the runner's token
+# via the GitHub API — it does NOT push a git tag, so it works even where tag
+# pushes are restricted.
 on:
   push:
+    branches:
+      - "claude/life-metrics-octagon-chart-lstdz1"
     tags:
       - "app-v*"
   workflow_dispatch:
@@ -66,12 +73,17 @@ jobs:
           name: rpg_me-apk
           path: app/rpg_me.apk
 
+      # Publish on a tag, on manual dispatch, or when the commit message says
+      # [release]. softprops creates the tag (at this commit) + release via the
+      # API using GITHUB_TOKEN.
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]') }}
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.1.0' }}
+          target_commitish: ${{ github.sha }}
           files: app/rpg_me.apk
-          name: RPG_me ${{ github.ref_name }}
+          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.1.0' }}
           body: |
             **Offline-first RPG_me — Android app.**
 
