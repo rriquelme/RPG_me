@@ -7,7 +7,7 @@ file only translates HTTP <-> engine calls.
 Routes (API Gateway HTTP API, payload v2):
     GET  /axes                  list the user's octagon axes
     GET  /config                same as /axes (the editable axis config)
-    PUT  /config                {axes:[...]} -> replace the axis config (6-10)
+    PUT  /config                {axes:[...]} -> replace the axis config (4-10)
     POST /log                   {axis, name, exp?, note?, seconds?, id?} -> log
                                 a routine; seconds>0 records a timed session
     POST /sync                  {events:[...]} -> idempotently apply offline
@@ -35,7 +35,7 @@ from rpgme.store import DynamoStore
 TABLE_NAME = os.environ.get("TABLE_NAME", "rpg_me")
 DEFAULT_USER = os.environ.get("DEFAULT_USER", "me")
 
-MIN_AXES, MAX_AXES = 6, 10
+MIN_AXES, MAX_AXES = 4, 10
 
 
 def engine_for(store) -> Engine:
