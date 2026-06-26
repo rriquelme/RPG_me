@@ -1,0 +1,12 @@
+{
+  "axes": [
+    {"key": "health", "label": "Health", "description": "Body, fitness, sleep, nutrition", "color": "#DD5555"},
+    {"key": "mind", "label": "Mind", "description": "Learning, focus, reading", "color": "#4C72B0"},
+    {"key": "career", "label": "Career", "description": "Work, projects, professional growth", "color": "#55883B"},
+    {"key": "social", "label": "Social", "description": "Friends, family, relationships", "color": "#E8A33D"},
+    {"key": "finance", "label": "Finance", "description": "Saving, budgeting, investing", "color": "#2E8B8B"},
+    {"key": "creativity", "label": "Creativity", "description": "Making, art, music, writing", "color": "#9457A0"},
+    {"key": "discipline", "label": "Discipline", "description": "Habits, consistency, willpower", "color": "#555555"},
+    {"key": "spirit", "label": "Spirit", "description": "Meaning, mindfulness, rest", "color": "#C77DB0"}
+  ]
+}

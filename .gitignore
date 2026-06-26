@@ -1,2 +1,28 @@
-bin/python*
-lib64
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtualenvs (never commit these) — anchored to repo root so app/lib/ is fine
+.venv/
+venv/
+env/
+/bin/
+/include/
+/lib/
+/lib64
+/pyvenv.cfg
+
+# RPG_me generated artifacts
+octagon.png
+data/save_file.json
+
+# AWS SAM build output
+.aws-sam/
+backend/.aws-sam/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
