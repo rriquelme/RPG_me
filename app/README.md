@@ -26,6 +26,17 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.5
+
+- **Octagon uses your axis colours** — the chart is custom-drawn; each axis
+  vertex and label is shown in the colour you set in Edit axes.
+- **Timers**: each has a **Reset**; pressing **Stop** asks **Save or Discard**;
+  **swipe right** on a timer to stop & save, **swipe left** to reveal Delete.
+- **"What did you do?" is optional** when logging — blank falls back to the
+  category name.
+- **Two heatmaps**: a global one plus a second that you can **filter by
+  category**.
+
 ## What's new in 0.4
 
 - **Octagon by Hours or Levels** — toggle at the top of the home screen.
