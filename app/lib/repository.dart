@@ -115,6 +115,33 @@ class Repository {
     await _store.saveEvents(_events);
   }
 
+  /// Edit an existing logged event. Keeps its id, recomputes exp from the new
+  /// duration, and marks it unsynced so the change re-syncs.
+  Future<void> updateEvent(
+    String id, {
+    required String axisKey,
+    required String name,
+    int seconds = 0,
+    DateTime? at,
+    String note = '',
+  }) async {
+    final i = _events.indexWhere((e) => e.id == id);
+    if (i < 0) return;
+    final perMinute = (seconds / 60).round();
+    final exp = seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10;
+    _events[i] = Event(
+      id: id,
+      axisKey: axisKey,
+      name: name.trim().toLowerCase(),
+      exp: exp,
+      note: note,
+      timestamp: at ?? _events[i].timestamp,
+      seconds: seconds,
+      synced: false,
+    );
+    await _store.saveEvents(_events);
+  }
+
   // --- period-aware octagon data -----------------------------------------
   /// Per-axis seconds + exp within [since] (null = all time) and the number of
   /// days the window covers (for "average per day").

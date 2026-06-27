@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 
+import '../local/event.dart';
 import '../models.dart';
 import '../repository.dart';
 
 /// Log an activity: pick a category, name it, optionally record how long you
-/// spent and on which day/time (so you can review it later).
+/// spent and on which day/time. Pass [existing] to edit a logged entry instead.
 class LogScreen extends StatefulWidget {
   final Repository repo;
-  const LogScreen({super.key, required this.repo});
+  final Event? existing;
+  const LogScreen({super.key, required this.repo, this.existing});
 
   @override
   State<LogScreen> createState() => _LogScreenState();
@@ -27,11 +29,22 @@ class _LogScreenState extends State<LogScreen> {
   @override
   void initState() {
     super.initState();
+    final ex = widget.existing;
+    if (ex != null) {
+      _nameController.text = ex.name;
+      _hours = ex.seconds ~/ 3600;
+      _minutes = (ex.seconds % 3600) ~/ 60;
+      _when = ex.timestamp;
+    }
     widget.repo.axes().then((a) {
       if (mounted) {
         setState(() {
           _axes = a;
-          _selectedAxis = a.isNotEmpty ? a.first.key : null;
+          if (ex != null && a.any((x) => x.key == ex.axisKey)) {
+            _selectedAxis = ex.axisKey;
+          } else {
+            _selectedAxis = a.isNotEmpty ? a.first.key : null;
+          }
         });
       }
     }).catchError((e) => setState(() => _error = e.toString()));
@@ -72,12 +85,24 @@ class _LogScreenState extends State<LogScreen> {
             orElse: () => _axes.first);
         name = axis.label.toLowerCase();
       }
-      await widget.repo.log(
-        _selectedAxis!,
-        name,
-        seconds: _seconds,
-        at: _when,
-      );
+      final ex = widget.existing;
+      if (ex != null) {
+        await widget.repo.updateEvent(
+          ex.id,
+          axisKey: _selectedAxis!,
+          name: name,
+          seconds: _seconds,
+          at: _when,
+          note: ex.note,
+        );
+      } else {
+        await widget.repo.log(
+          _selectedAxis!,
+          name,
+          seconds: _seconds,
+          at: _when,
+        );
+      }
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {
@@ -98,8 +123,9 @@ class _LogScreenState extends State<LogScreen> {
     String two(int n) => n.toString().padLeft(2, '0');
     final whenLabel =
         '${_when.year}-${two(_when.month)}-${two(_when.day)}  ${two(_when.hour)}:${two(_when.minute)}';
+    final editing = widget.existing != null;
     return Scaffold(
-      appBar: AppBar(title: const Text('Log an activity')),
+      appBar: AppBar(title: Text(editing ? 'Edit activity' : 'Log an activity')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -165,7 +191,7 @@ class _LogScreenState extends State<LogScreen> {
                 icon: _submitting
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.check),
-                label: const Text('Log it'),
+                label: Text(editing ? 'Save changes' : 'Log it'),
               ),
             ],
           ),

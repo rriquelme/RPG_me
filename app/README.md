@@ -26,6 +26,18 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.7
+
+- **Durable storage** — data now lives in a JSON file in the app's documents
+  folder (`rpg_me/data.json`) instead of shared_preferences, so it survives
+  app updates. Existing data is migrated automatically on first launch.
+- **Heatmap shortcut** — a calendar icon in the top bar opens the activity
+  heatmap directly.
+- **Optional timer activity** — naming a new timer is optional (falls back to
+  the category).
+- **Edit logged entries** — tap (or the edit icon) on a row in *Logged
+  activities* to change its category, name, duration, or date/time.
+
 ## What's new in 0.6
 
 - **Optional axis colours** — Edit axes → tap a colour → **Default** to clear

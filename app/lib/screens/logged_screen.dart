@@ -4,6 +4,7 @@ import '../local/event.dart';
 import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
+import 'log_screen.dart';
 
 /// A history of every logged task/session — newest first — with the option to
 /// delete one.
@@ -49,6 +50,13 @@ class _LoggedScreenState extends State<LoggedScreen> {
     }
   }
 
+  Future<void> _edit(Event e) async {
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => LogScreen(repo: widget.repo, existing: e)),
+    );
+    if (changed == true) setState(() => _events = widget.repo.allEvents());
+  }
+
   String _subtitle(Event e) {
     String two(int n) => n.toString().padLeft(2, '0');
     final d = e.timestamp;
@@ -76,6 +84,7 @@ class _LoggedScreenState extends State<LoggedScreen> {
                 final e = _events[i];
                 final axis = _axisOf(e.axisKey);
                 return ListTile(
+                  onTap: () => _edit(e),
                   leading: CircleAvatar(
                     radius: 12,
                     backgroundColor:
@@ -83,10 +92,20 @@ class _LoggedScreenState extends State<LoggedScreen> {
                   ),
                   title: Text(e.name),
                   subtitle: Text(_subtitle(e)),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Delete',
-                    onPressed: () => _delete(e),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined),
+                        tooltip: 'Edit',
+                        onPressed: () => _edit(e),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline),
+                        tooltip: 'Delete',
+                        onPressed: () => _delete(e),
+                      ),
+                    ],
                   ),
                 );
               },

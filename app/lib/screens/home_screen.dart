@@ -185,12 +185,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     _reload();
                   },
                 ),
+                IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: 'Activity heatmap',
+                  onPressed: () => _push(HeatmapScreen(repo: repo)),
+                ),
                 _SyncButton(syncing: _syncing, unsynced: unsynced, onPressed: _sync),
                 PopupMenuButton<String>(
                   onSelected: _onMenu,
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'logged', child: Text('Logged activities')),
-                    PopupMenuItem(value: 'heatmap', child: Text('Activity heatmap')),
                     PopupMenuItem(value: 'time', child: Text('Time tracked')),
                     PopupMenuItem(value: 'axes', child: Text('Edit axes')),
                     PopupMenuItem(value: 'export', child: Text('Export CSV (Excel)')),
