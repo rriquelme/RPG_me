@@ -188,6 +188,17 @@ class LocalEngine {
     return m;
   }
 
+  /// Number of logged events per axis, optionally within a window — this is the
+  /// "frequency" metric (a duration-less tally still counts here).
+  Map<String, int> countByAxis({DateTime? since}) {
+    final m = <String, int>{};
+    for (final e in events) {
+      if (since != null && e.timestamp.isBefore(since)) continue;
+      m[e.axisKey] = (m[e.axisKey] ?? 0) + 1;
+    }
+    return m;
+  }
+
   /// The earliest event date, or null if there are no events.
   DateTime? firstEventDate() {
     DateTime? min;

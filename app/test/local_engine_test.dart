@@ -108,6 +108,20 @@ void main() {
     expect(eng.expByAxis(since: since)['mind'], 30); // last week only
   });
 
+  test('countByAxis counts events incl. duration-less tallies', () {
+    final now = DateTime.now();
+    final eng = LocalEngine([
+      ev('health', 'gym', exp: 10, at: now), // count-only, no duration
+      ev('health', 'gym', exp: 10, at: now),
+      ev('mind', 'study', seconds: 1800, at: now),
+      ev('health', 'old', at: now.subtract(const Duration(days: 40))),
+    ]);
+    expect(eng.countByAxis()['health'], 3); // all time
+    expect(eng.countByAxis()['mind'], 1);
+    final since = now.subtract(const Duration(days: 7));
+    expect(eng.countByAxis(since: since)['health'], 2); // window excludes the old one
+  });
+
   test('daily aggregates can be filtered by axis', () {
     final today = DateTime.now();
     final eng = LocalEngine([
