@@ -178,6 +178,25 @@ class LocalEngine {
   /// Total tracked seconds per axis (all time) — used for the hours octagon.
   Map<String, int> secondsByAxis() => timeTotals().byAxis;
 
+  /// Exp earned per axis, optionally within a window (period-filtered octagon).
+  Map<String, int> expByAxis({DateTime? since}) {
+    final m = <String, int>{};
+    for (final e in events) {
+      if (since != null && e.timestamp.isBefore(since)) continue;
+      m[e.axisKey] = (m[e.axisKey] ?? 0) + e.exp;
+    }
+    return m;
+  }
+
+  /// The earliest event date, or null if there are no events.
+  DateTime? firstEventDate() {
+    DateTime? min;
+    for (final e in events) {
+      if (min == null || e.timestamp.isBefore(min)) min = e.timestamp;
+    }
+    return min;
+  }
+
   // --- heatmap (GitHub-squares) -------------------------------------------
   static String dayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';

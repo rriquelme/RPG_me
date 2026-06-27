@@ -89,7 +89,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
           const SizedBox(height: 20),
           Text('All activity', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          HeatGrid(data: _data(true), isTime: isTime),
+          HeatGrid(data: _data(true), isTime: isTime, baseColor: const Color(0xFF2E9E4F)),
           const SizedBox(height: 28),
           const Divider(),
           const SizedBox(height: 12),
@@ -117,7 +117,13 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          HeatGrid(data: _data(false), isTime: isTime),
+          HeatGrid(
+            data: _data(false),
+            isTime: isTime,
+            baseColor: _axisKey == null
+                ? Theme.of(context).colorScheme.primary
+                : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
+          ),
         ],
       ),
     );
@@ -128,16 +134,23 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
 class HeatGrid extends StatelessWidget {
   final Map<String, int> data;
   final bool isTime;
+  final Color baseColor;
   static const _weeks = 26;
 
-  const HeatGrid({super.key, required this.data, required this.isTime});
+  const HeatGrid({
+    super.key,
+    required this.data,
+    required this.isTime,
+    required this.baseColor,
+  });
 
   Color _cell(BuildContext context, int value, int max) {
-    final scheme = Theme.of(context).colorScheme;
-    if (value <= 0 || max <= 0) return scheme.surfaceContainerHighest;
+    if (value <= 0 || max <= 0) {
+      return Theme.of(context).colorScheme.surfaceContainerHighest;
+    }
     final r = value / max;
-    final o = r <= 0.25 ? 0.30 : (r <= 0.5 ? 0.50 : (r <= 0.75 ? 0.72 : 1.0));
-    return scheme.primary.withOpacity(o);
+    final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
+    return baseColor.withOpacity(o);
   }
 
   @override
@@ -180,12 +193,12 @@ class HeatGrid extends StatelessWidget {
         Row(children: [
           Text('Less', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(width: 6),
-          ...[0.30, 0.50, 0.72, 1.0].map((o) => Container(
+          ...[0.35, 0.55, 0.78, 1.0].map((o) => Container(
                 width: 13,
                 height: 13,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withOpacity(o),
+                  color: baseColor.withOpacity(o),
                   borderRadius: BorderRadius.circular(3),
                 ),
               )),

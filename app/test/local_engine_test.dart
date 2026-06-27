@@ -97,6 +97,29 @@ void main() {
     expect(eng.summary().secondsByAxis['mind'], 1200);
   });
 
+  test('expByAxis respects the period window', () {
+    final now = DateTime.now();
+    final eng = LocalEngine([
+      ev('mind', 'study', exp: 30, at: now),
+      ev('mind', 'old', exp: 100, at: now.subtract(const Duration(days: 60))),
+    ]);
+    expect(eng.expByAxis()['mind'], 130); // all time
+    final since = now.subtract(const Duration(days: 7));
+    expect(eng.expByAxis(since: since)['mind'], 30); // last week only
+  });
+
+  test('daily aggregates can be filtered by axis', () {
+    final today = DateTime.now();
+    final eng = LocalEngine([
+      ev('mind', 'study', seconds: 1800, at: today),
+      ev('health', 'gym', seconds: 3600, at: today),
+    ]);
+    final dk = LocalEngine.dayKey(today);
+    expect(eng.dailySeconds(axisKey: 'mind')[dk], 1800);
+    expect(eng.dailySeconds(axisKey: 'health')[dk], 3600);
+    expect(eng.dailyCounts(axisKey: 'mind')[dk], 1);
+  });
+
   test('ytd excludes prior-year events', () {
     final now = DateTime.now();
     final lastYear = DateTime(now.year - 1, 6, 1, 12);

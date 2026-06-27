@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 
-/// Parse a "#RRGGBB" string into a Flutter [Color].
+/// A neutral fallback when an axis has no custom colour (colours are optional).
+const Color kDefaultAxisColor = Color(0xFF9E9E9E);
+
+/// Parse a "#RRGGBB" string into a Flutter [Color]. Empty/invalid -> default.
 Color colorFromHex(String hex) {
-  var value = hex.replaceFirst('#', '');
+  var value = hex.replaceFirst('#', '').trim();
+  if (value.isEmpty) return kDefaultAxisColor;
   if (value.length == 6) value = 'FF$value'; // add full opacity
-  return Color(int.parse(value, radix: 16));
+  final n = int.tryParse(value, radix: 16);
+  return n == null ? kDefaultAxisColor : Color(n);
 }
 
 /// One point of the octagon — mirrors an entry of the API's `octagon` list.
