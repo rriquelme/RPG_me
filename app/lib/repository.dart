@@ -14,6 +14,20 @@ class SyncResult {
   const SyncResult({required this.pushed, required this.ok, this.error});
 }
 
+/// Per-axis data for the home octagon over a chosen period.
+class OctagonView {
+  final List<AxisDef> axes;
+  final Map<String, int> seconds; // per axis, within the window
+  final Map<String, int> exp; // per axis, within the window
+  final int days; // days the window covers (for average-per-day)
+  const OctagonView({
+    required this.axes,
+    required this.seconds,
+    required this.exp,
+    required this.days,
+  });
+}
+
 /// Local-first data layer. All reads/writes hit the on-device event log so the
 /// app works fully offline; [sync] optionally pushes unsynced events to the
 /// backend when one is configured.
@@ -88,6 +102,40 @@ class Repository {
       _engine.dailyCounts(axisKey: axisKey);
   Future<Map<String, int>> dailySeconds({String? axisKey}) async =>
       _engine.dailySeconds(axisKey: axisKey);
+
+  // --- logged activity history -------------------------------------------
+  /// All logged events, most recent first.
+  List<Event> allEvents() {
+    final list = [..._events]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
+  }
+
+  Future<void> deleteEvent(String id) async {
+    _events.removeWhere((e) => e.id == id);
+    await _store.saveEvents(_events);
+  }
+
+  // --- period-aware octagon data -----------------------------------------
+  /// Per-axis seconds + exp within [since] (null = all time) and the number of
+  /// days the window covers (for "average per day").
+  OctagonView octagonView(DateTime? since) {
+    int days;
+    if (since == null) {
+      final first = _engine.firstEventDate();
+      days = first == null
+          ? 1
+          : DateTime.now().difference(DateTime(first.year, first.month, first.day)).inDays + 1;
+    } else {
+      days = DateTime.now().difference(since).inDays + 1;
+    }
+    if (days < 1) days = 1;
+    return OctagonView(
+      axes: _axes,
+      seconds: _engine.timeTotals(since: since).byAxis,
+      exp: _engine.expByAxis(since: since),
+      days: days,
+    );
+  }
 
   // --- timers (multiple, concurrent) --------------------------------------
   Future<List<TimerEntry>> loadTimers() => _store.loadTimers();

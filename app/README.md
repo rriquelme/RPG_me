@@ -26,6 +26,20 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.6
+
+- **Optional axis colours** — Edit axes → tap a colour → **Default** to clear
+  it (the axis then uses a neutral colour).
+- **Logged activities** — menu → *Logged activities*: a history of every
+  session (date, time, category, duration) with delete.
+- **Coloured heatmaps** — the global grid is green; the per-category grid uses
+  that axis's colour.
+- **Configurable octagon window** — a period dropdown on the home screen:
+  Last 7 days · This month · Last 30 days · Year to date · Last year · All
+  time. The choice is saved.
+- **Average per day** — an "Avg / day" toggle divides the octagon values by the
+  number of days in the window (e.g. average hours/day).
+
 ## What's new in 0.5
 
 - **Octagon uses your axis colours** — the chart is custom-drawn; each axis

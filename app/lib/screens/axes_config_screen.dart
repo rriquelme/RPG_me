@@ -59,29 +59,41 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   }
 
   Future<void> _pickColor(int i) async {
+    // A sentinel for "no custom colour" (colours are optional).
+    const none = '__none__';
     final chosen = await showDialog<String>(
       context: context,
       builder: (_) => SimpleDialog(
-        title: const Text('Pick a colour'),
+        title: const Text('Pick a colour (optional)'),
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
             child: Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: kAxisPalette
-                  .map((hex) => InkWell(
-                        onTap: () => Navigator.pop(context, hex),
-                        child: CircleAvatar(
-                            backgroundColor: colorFromHex(hex), radius: 18),
-                      ))
-                  .toList(),
+              children: [
+                // "Default" = no custom colour.
+                InkWell(
+                  onTap: () => Navigator.pop(context, none),
+                  child: CircleAvatar(
+                    backgroundColor: kDefaultAxisColor,
+                    radius: 18,
+                    child: const Icon(Icons.format_color_reset, size: 18, color: Colors.white),
+                  ),
+                ),
+                ...kAxisPalette.map((hex) => InkWell(
+                      onTap: () => Navigator.pop(context, hex),
+                      child: CircleAvatar(backgroundColor: colorFromHex(hex), radius: 18),
+                    )),
+              ],
             ),
           ),
         ],
       ),
     );
-    if (chosen != null) setState(() => _axes[i] = _axes[i].copyWith(colorHex: chosen));
+    if (chosen != null) {
+      setState(() => _axes[i] = _axes[i].copyWith(colorHex: chosen == none ? '' : chosen));
+    }
   }
 
   Future<void> _save() async {
