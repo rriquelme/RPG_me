@@ -84,8 +84,10 @@ class Repository {
   }
 
   Future<Map<String, int>> secondsByAxis() async => _engine.secondsByAxis();
-  Future<Map<String, int>> dailyCounts() async => _engine.dailyCounts();
-  Future<Map<String, int>> dailySeconds() async => _engine.dailySeconds();
+  Future<Map<String, int>> dailyCounts({String? axisKey}) async =>
+      _engine.dailyCounts(axisKey: axisKey);
+  Future<Map<String, int>> dailySeconds({String? axisKey}) async =>
+      _engine.dailySeconds(axisKey: axisKey);
 
   // --- timers (multiple, concurrent) --------------------------------------
   Future<List<TimerEntry>> loadTimers() => _store.loadTimers();

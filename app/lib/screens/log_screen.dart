@@ -59,15 +59,22 @@ class _LogScreenState extends State<LogScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate() || _selectedAxis == null) return;
+    if (_selectedAxis == null) return;
     setState(() {
       _submitting = true;
       _error = null;
     });
     try {
+      // Name is optional — fall back to the category's label.
+      var name = _nameController.text.trim();
+      if (name.isEmpty) {
+        final axis = _axes.firstWhere((a) => a.key == _selectedAxis,
+            orElse: () => _axes.first);
+        name = axis.label.toLowerCase();
+      }
       await widget.repo.log(
         _selectedAxis!,
-        _nameController.text.trim(),
+        name,
         seconds: _seconds,
         at: _when,
       );
@@ -118,11 +125,9 @@ class _LogScreenState extends State<LogScreen> {
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(
-                  labelText: 'What did you do?',
+                  labelText: 'What did you do? (optional)',
                   hintText: 'gym, read, meditate…',
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 24),
               Text('Time spent', style: Theme.of(context).textTheme.titleMedium),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../local/local_engine.dart';
 import '../local/timer_entry.dart';
@@ -120,29 +121,57 @@ class _TimersScreenState extends State<TimersScreen> {
     await _persist();
   }
 
+  Future<void> _reset(TimerEntry t) async {
+    setState(() => t.reset());
+    await _persist();
+  }
+
   Future<void> _discard(TimerEntry t) async {
     setState(() => _timers.remove(t));
     await _persist();
   }
 
-  Future<void> _stopAndSave(TimerEntry t) async {
-    t.pause();
+  /// Pressing stop pauses the timer and asks whether to save or discard it.
+  Future<void> _stopConfirm(TimerEntry t) async {
+    setState(() => t.pause());
+    await _persist();
     final seconds = t.elapsedSeconds;
     if (seconds < 1) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Timer has no time yet.')));
-      setState(() {});
-      await _persist();
       return;
     }
-    await widget.repo.log(t.axisKey, t.label, seconds: seconds);
-    setState(() => _timers.remove(t));
-    await _persist();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved ${formatHms(seconds)} to ${t.label}.')),
-      );
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Stop “${t.label}”?'),
+        content: Text('Save ${formatHms(seconds)} to this category, or discard it?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'cancel'),
+              child: const Text('Keep timer')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'discard'),
+              child: const Text('Discard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (choice == 'save') {
+      await widget.repo.log(t.axisKey, t.label, seconds: seconds);
+      setState(() => _timers.remove(t));
+      await _persist();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved ${formatHms(seconds)} to ${t.label}.')),
+        );
+      }
+    } else if (choice == 'discard') {
+      await _discard(t);
     }
+    // 'cancel' / null: leave the (now paused) timer in place.
   }
 
   @override
@@ -165,48 +194,90 @@ class _TimersScreenState extends State<TimersScreen> {
                 ),
               ),
             )
-          : ListView.builder(
-              itemCount: _timers.length,
+          : Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Row(children: [
+                  Icon(Icons.swipe, size: 16, color: Theme.of(context).hintColor),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('Swipe right to stop & save · swipe left to delete',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ),
+                ]),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 88, top: 4),
+                  itemCount: _timers.length,
               itemBuilder: (context, i) {
                 final t = _timers[i];
                 final axis = _axisOf(t.axisKey);
-                return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          axis != null ? colorFromHex(axis.colorHex) : Colors.grey,
-                      radius: 14,
-                    ),
-                    title: Text(t.label),
-                    subtitle: Text(
-                      '${axis?.label ?? t.axisKey} · ${_clock(t.elapsedSeconds)}'
-                      '${t.isRunning ? ' • running' : ' • paused'}',
-                    ),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(t.isRunning ? Icons.pause : Icons.play_arrow),
-                          tooltip: t.isRunning ? 'Pause' : 'Resume',
-                          onPressed: () => _toggle(t),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.stop),
-                          tooltip: 'Stop & save',
-                          onPressed: () => _stopAndSave(t),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline),
-                          tooltip: 'Discard',
-                          onPressed: () => _discard(t),
-                        ),
-                      ],
+                return Slidable(
+                  key: ValueKey(t.id),
+                  // Slide right → reveal "Stop & save".
+                  startActionPane: ActionPane(
+                    motion: const DrawerMotion(),
+                    extentRatio: 0.3,
+                    children: [
+                      SlidableAction(
+                        onPressed: (_) => _stopConfirm(t),
+                        backgroundColor: Colors.green.shade600,
+                        foregroundColor: Colors.white,
+                        icon: Icons.stop,
+                        label: 'Stop & save',
+                      ),
+                    ],
+                  ),
+                  // Slide left → reveal "Delete" (kept out of easy reach).
+                  endActionPane: ActionPane(
+                    motion: const DrawerMotion(),
+                    extentRatio: 0.3,
+                    children: [
+                      SlidableAction(
+                        onPressed: (_) => _discard(t),
+                        backgroundColor: Colors.red.shade600,
+                        foregroundColor: Colors.white,
+                        icon: Icons.delete,
+                        label: 'Delete',
+                      ),
+                    ],
+                  ),
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            axis != null ? colorFromHex(axis.colorHex) : Colors.grey,
+                        radius: 14,
+                      ),
+                      title: Text(t.label),
+                      subtitle: Text(
+                        '${axis?.label ?? t.axisKey} · ${_clock(t.elapsedSeconds)}'
+                        '${t.isRunning ? ' • running' : ' • paused'}',
+                      ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: Icon(t.isRunning ? Icons.pause : Icons.play_arrow),
+                            tooltip: t.isRunning ? 'Pause' : 'Resume',
+                            onPressed: () => _toggle(t),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            tooltip: 'Reset',
+                            onPressed: () => _reset(t),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
               },
-            ),
+                ),
+              ),
+            ]),
     );
   }
 }

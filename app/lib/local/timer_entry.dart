@@ -39,6 +39,12 @@ class TimerEntry {
     }
   }
 
+  /// Zero the elapsed time. Keeps running (from now) if it was running.
+  void reset() {
+    accumulatedSeconds = 0;
+    if (runningSince != null) runningSince = DateTime.now();
+  }
+
   Map<String, dynamic> toJson() => {
         'id': id,
         'label': label,

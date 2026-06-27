@@ -182,21 +182,23 @@ class LocalEngine {
   static String dayKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-  /// Events logged per calendar day (frequency heatmap).
-  Map<String, int> dailyCounts() {
+  /// Events logged per calendar day (frequency heatmap), optionally for one axis.
+  Map<String, int> dailyCounts({String? axisKey}) {
     final m = <String, int>{};
     for (final e in events) {
+      if (axisKey != null && e.axisKey != axisKey) continue;
       final k = dayKey(e.timestamp);
       m[k] = (m[k] ?? 0) + 1;
     }
     return m;
   }
 
-  /// Tracked seconds per calendar day (time-spent heatmap).
-  Map<String, int> dailySeconds() {
+  /// Tracked seconds per calendar day (time-spent heatmap), optionally per axis.
+  Map<String, int> dailySeconds({String? axisKey}) {
     final m = <String, int>{};
     for (final e in events) {
       if (e.seconds <= 0) continue;
+      if (axisKey != null && e.axisKey != axisKey) continue;
       final k = dayKey(e.timestamp);
       m[k] = (m[k] ?? 0) + e.seconds;
     }
