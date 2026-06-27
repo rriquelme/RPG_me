@@ -86,7 +86,7 @@ class _TimersScreenState extends State<TimersScreen> {
               TextField(
                 controller: nameController,
                 decoration: const InputDecoration(
-                    labelText: 'Activity', hintText: 'study, deep work…'),
+                    labelText: 'Activity (optional)', hintText: 'study, deep work…'),
               ),
             ],
           ),
@@ -102,8 +102,11 @@ class _TimersScreenState extends State<TimersScreen> {
       ),
     );
     if (created == true) {
-      final name = nameController.text.trim();
-      if (name.isEmpty) return;
+      // Activity is optional — fall back to the category label.
+      var name = nameController.text.trim();
+      if (name.isEmpty) {
+        name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
+      }
       setState(() {
         _timers.add(TimerEntry(
           id: TimerEntry.newId(),
