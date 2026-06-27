@@ -19,11 +19,13 @@ class OctagonView {
   final List<AxisDef> axes;
   final Map<String, int> seconds; // per axis, within the window
   final Map<String, int> exp; // per axis, within the window
+  final Map<String, int> counts; // events per axis, within the window
   final int days; // days the window covers (for average-per-day)
   const OctagonView({
     required this.axes,
     required this.seconds,
     required this.exp,
+    required this.counts,
     required this.days,
   });
 }
@@ -160,6 +162,7 @@ class Repository {
       axes: _axes,
       seconds: _engine.timeTotals(since: since).byAxis,
       exp: _engine.expByAxis(since: since),
+      counts: _engine.countByAxis(since: since),
       days: days,
     );
   }

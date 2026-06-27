@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.8
+
+- **Frequency octagon** — the home toggle is now **Hours · Frequency ·
+  Levels**. "Frequency" plots how many times you logged each category in the
+  window, so a duration-less tally (0h 0m, no description — just a category)
+  now visibly moves the chart. Works with the period window and Avg/day.
+
 ## What's new in 0.7
 
 - **Durable storage** — data now lives in a JSON file in the app's documents

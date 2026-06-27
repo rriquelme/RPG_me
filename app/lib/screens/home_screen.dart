@@ -17,7 +17,7 @@ import 'settings_dialog.dart';
 import 'time_screen.dart';
 import 'timers_screen.dart';
 
-enum OctagonMetric { hours, levels }
+enum OctagonMetric { hours, frequency, levels }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -147,23 +147,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  double _rawValue(OctagonView v, String key) {
+    switch (_metric) {
+      case OctagonMetric.hours:
+        return (v.seconds[key] ?? 0) / 3600.0;
+      case OctagonMetric.frequency:
+        return (v.counts[key] ?? 0).toDouble();
+      case OctagonMetric.levels:
+        return levelForExp(v.exp[key] ?? 0).toDouble();
+    }
+  }
+
   List<RadarPoint> _points(OctagonView v, bool average) {
     return v.axes.map((a) {
-      double value = _metric == OctagonMetric.hours
-          ? (v.seconds[a.key] ?? 0) / 3600.0
-          : levelForExp(v.exp[a.key] ?? 0).toDouble();
+      var value = _rawValue(v, a.key);
       if (average && v.days > 0) value = value / v.days;
       return RadarPoint(label: a.label, color: colorFromHex(a.colorHex), value: value);
     }).toList();
   }
 
   String _formatValue(double v, bool average) {
-    if (_metric == OctagonMetric.levels) {
-      return average ? v.toStringAsFixed(2) : 'L${v.toInt()}';
-    }
     final suffix = average ? '/d' : '';
-    if (v >= 1) return '${v.toStringAsFixed(v < 10 ? 1 : 0)}h$suffix';
-    return '${(v * 60).round()}m$suffix';
+    switch (_metric) {
+      case OctagonMetric.levels:
+        return average ? v.toStringAsFixed(2) : 'L${v.toInt()}';
+      case OctagonMetric.frequency:
+        return average ? '${v.toStringAsFixed(1)}$suffix' : '${v.toInt()}×';
+      case OctagonMetric.hours:
+        if (v >= 1) return '${v.toStringAsFixed(v < 10 ? 1 : 0)}h$suffix';
+        return '${(v * 60).round()}m$suffix';
+    }
   }
 
   @override
@@ -241,6 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: SegmentedButton<OctagonMetric>(
             segments: const [
               ButtonSegment(value: OctagonMetric.hours, label: Text('Hours')),
+              ButtonSegment(value: OctagonMetric.frequency, label: Text('Frequency')),
               ButtonSegment(value: OctagonMetric.levels, label: Text('Levels')),
             ],
             selected: {_metric},
