@@ -59,12 +59,10 @@ jobs:
             cat >> android/build.gradle.kts <<'GRADLE'
 
           subprojects {
-              afterEvaluate {
-                  val androidExt = extensions.findByName("android")
-                  if (androidExt != null) {
-                      androidExt.withGroovyBuilder { "compileSdkVersion"(36) }
-                  }
+              fun forceSdk() {
+                  extensions.findByName("android")?.withGroovyBuilder { "compileSdkVersion"(36) }
               }
+              if (state.executed) forceSdk() else afterEvaluate { forceSdk() }
           }
           GRADLE
           fi
@@ -72,11 +70,11 @@ jobs:
             cat >> android/build.gradle <<'GRADLE'
 
           subprojects {
-              afterEvaluate { project ->
-                  if (project.hasProperty('android')) {
-                      project.android { compileSdkVersion 36 }
-                  }
+              def forceSdk = {
+                  if (it.hasProperty('android')) { it.android { compileSdkVersion 36 } }
               }
+              if (project.state.executed) { forceSdk(project) }
+              else { afterEvaluate { forceSdk(it) } }
           }
           GRADLE
           fi
