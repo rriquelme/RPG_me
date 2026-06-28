@@ -48,12 +48,38 @@ jobs:
           git checkout -- pubspec.yaml lib/main.dart analysis_options.yaml
           rm -f test/widget_test.dart
           # Some plugins (file_picker -> flutter_plugin_android_lifecycle) now
-          # require compileSdk 36; the template defaults lower. Force it.
+          # require compileSdk 36. Force it on the app module AND on every
+          # plugin subproject (plugins don't inherit the app's compileSdk here).
           for f in android/app/build.gradle android/app/build.gradle.kts; do
             [ -f "$f" ] || continue
             sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$f"
             sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$f"
           done
+          if [ -f android/build.gradle.kts ]; then
+            cat >> android/build.gradle.kts <<'GRADLE'
+
+          subprojects {
+              afterEvaluate {
+                  val androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
+                      androidExt.withGroovyBuilder { "compileSdkVersion"(36) }
+                  }
+              }
+          }
+          GRADLE
+          fi
+          if [ -f android/build.gradle ]; then
+            cat >> android/build.gradle <<'GRADLE'
+
+          subprojects {
+              afterEvaluate { project ->
+                  if (project.hasProperty('android')) {
+                      project.android { compileSdkVersion 36 }
+                  }
+              }
+          }
+          GRADLE
+          fi
 
       - name: Install packages
         working-directory: app
