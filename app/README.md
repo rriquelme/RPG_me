@@ -163,7 +163,12 @@ cd app
 flutter create --platforms=android --org com.rpgme --project-name rpg_me .
 git checkout -- pubspec.yaml lib/main.dart
 
-# 2. Fetch packages and build
+# 2. Some plugins (file_picker) require compileSdk 36 — bump it if your
+#    generated template is lower:
+sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' \
+  android/app/build.gradle.kts 2>/dev/null || true
+
+# 3. Fetch packages and build
 flutter pub get
 flutter test                 # runs the model tests
 flutter build apk --release  # -> build/app/outputs/flutter-apk/app-release.apk
