@@ -9,6 +9,7 @@ import '../models.dart';
 import '../repository.dart';
 import '../settings.dart';
 import '../widgets/octagon_chart.dart';
+import 'axes_config_screen.dart';
 import 'heatmap_screen.dart';
 import 'log_screen.dart';
 import 'logged_screen.dart';
@@ -162,6 +163,9 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'time':
         _push(TimeScreen(repo: repo));
         break;
+      case 'categories':
+        _push(AxesConfigScreen(repo: repo));
+        break;
       case 'export':
         _exportLogs();
         break;
@@ -236,6 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'logged', child: Text('Logged activities')),
                     PopupMenuItem(value: 'time', child: Text('Time tracked')),
+                    PopupMenuItem(value: 'categories', child: Text('Edit categories')),
                     PopupMenuItem(value: 'export', child: Text('Export logs (.md)')),
                     PopupMenuItem(value: 'import', child: Text('Import logs (.md)')),
                     PopupMenuItem(value: 'settings', child: Text('Settings')),
@@ -277,10 +282,10 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 8),
         Center(
           child: SegmentedButton<OctagonMetric>(
+            showSelectedIcon: false, // keep segment widths fixed (no resize on toggle)
             segments: const [
-              ButtonSegment(value: OctagonMetric.hours, label: Text('Hours')),
               ButtonSegment(value: OctagonMetric.frequency, label: Text('Frequency')),
-              ButtonSegment(value: OctagonMetric.levels, label: Text('Levels')),
+              ButtonSegment(value: OctagonMetric.hours, label: Text('Hours')),
             ],
             selected: {_metric},
             onSelectionChanged: (s) => setState(() => _metric = s.first),

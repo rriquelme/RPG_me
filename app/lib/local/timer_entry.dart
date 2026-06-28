@@ -2,46 +2,49 @@ import 'dart:math';
 
 /// One running/paused stopwatch. Multiple can run at once. Elapsed time is
 /// derived from wall-clock (a [runningSince] timestamp) so it stays correct
-/// even while the app is backgrounded or after a restart.
+/// even while the app is backgrounded or after a restart. Tracked at
+/// millisecond precision so the display can tick fast.
 class TimerEntry {
   final String id;
   String label; // activity name, e.g. "study"
-  String axisKey; // category (octagon axis)
-  int accumulatedSeconds; // banked time while paused
+  String axisKey; // category
+  int accumulatedMs; // banked time while paused
   DateTime? runningSince; // non-null while running
 
   TimerEntry({
     required this.id,
     required this.label,
     required this.axisKey,
-    this.accumulatedSeconds = 0,
+    this.accumulatedMs = 0,
     this.runningSince,
   });
 
   bool get isRunning => runningSince != null;
 
-  int get elapsedSeconds {
-    var total = accumulatedSeconds;
+  int get elapsedMs {
+    var total = accumulatedMs;
     if (runningSince != null) {
-      total += DateTime.now().difference(runningSince!).inSeconds;
+      total += DateTime.now().difference(runningSince!).inMilliseconds;
     }
     return total;
   }
 
+  int get elapsedSeconds => elapsedMs ~/ 1000;
+
   void start() {
-    if (runningSince == null) runningSince = DateTime.now();
+    runningSince ??= DateTime.now();
   }
 
   void pause() {
     if (runningSince != null) {
-      accumulatedSeconds += DateTime.now().difference(runningSince!).inSeconds;
+      accumulatedMs += DateTime.now().difference(runningSince!).inMilliseconds;
       runningSince = null;
     }
   }
 
   /// Zero the elapsed time. Keeps running (from now) if it was running.
   void reset() {
-    accumulatedSeconds = 0;
+    accumulatedMs = 0;
     if (runningSince != null) runningSince = DateTime.now();
   }
 
@@ -49,7 +52,7 @@ class TimerEntry {
         'id': id,
         'label': label,
         'axis_key': axisKey,
-        'accumulated': accumulatedSeconds,
+        'accumulated_ms': accumulatedMs,
         'running_since': runningSince?.toIso8601String(),
       };
 
@@ -57,7 +60,9 @@ class TimerEntry {
         id: j['id'] as String,
         label: (j['label'] ?? '') as String,
         axisKey: j['axis_key'] as String,
-        accumulatedSeconds: (j['accumulated'] ?? 0) as int,
+        // Migrate older entries that stored whole seconds in 'accumulated'.
+        accumulatedMs: (j['accumulated_ms'] as int?) ??
+            (((j['accumulated'] ?? 0) as int) * 1000),
         runningSince: j['running_since'] != null
             ? DateTime.parse(j['running_since'] as String)
             : null,

@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.11
+
+- **Edit categories** moved back to the ⋮ menu (renamed from "Edit axes").
+- **Levels hidden** for now — the octagon toggle is just **Frequency / Hours**,
+  and switching no longer resizes the chart (`showSelectedIcon` off).
+- **Timers redesigned** — bigger, clearer cards with visible Reset / Pause /
+  Stop buttons, and the running time now shows **milliseconds** (ticking fast).
+
 ## What's new in 0.10
 
 - **Edit axes moved into Settings**, alongside the renamed **API settings**.

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -8,8 +9,8 @@ import '../local/timer_entry.dart';
 import '../models.dart';
 import '../repository.dart';
 
-/// A list of stopwatches you can run at the same time. Each one banks time
-/// against a category; "Stop & save" logs the elapsed time as a session.
+/// A list of stopwatches you can run at the same time. Each banks time against
+/// a category; "Stop & save" logs the elapsed time as a session.
 class TimersScreen extends StatefulWidget {
   final Repository repo;
   const TimersScreen({super.key, required this.repo});
@@ -28,7 +29,8 @@ class _TimersScreenState extends State<TimersScreen> {
     widget.repo.loadTimers().then((t) {
       if (mounted) setState(() => _timers = t);
     });
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+    // Fast tick so the milliseconds move and it feels alive.
+    _ticker = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (mounted && _timers.any((t) => t.isRunning)) setState(() {});
     });
   }
@@ -48,10 +50,13 @@ class _TimersScreenState extends State<TimersScreen> {
     return null;
   }
 
-  String _clock(int seconds) {
+  String _display(int ms) {
     String two(int n) => n.toString().padLeft(2, '0');
-    final h = seconds ~/ 3600, m = (seconds % 3600) ~/ 60, s = seconds % 60;
-    return h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
+    final totalSec = ms ~/ 1000;
+    final h = totalSec ~/ 3600, m = (totalSec % 3600) ~/ 60, s = totalSec % 60;
+    final millis = (ms % 1000).toString().padLeft(3, '0');
+    final base = h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
+    return '$base.$millis';
   }
 
   Future<void> _add() async {
@@ -94,19 +99,17 @@ class _TimersScreenState extends State<TimersScreen> {
             TextButton(
                 onPressed: () => Navigator.pop(context, false),
                 child: const Text('Cancel')),
-            FilledButton(
+            FilledButton.icon(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Start')),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start')),
           ],
         ),
       ),
     );
     if (created == true) {
-      // Activity is optional — fall back to the category label.
       var name = nameController.text.trim();
-      if (name.isEmpty) {
-        name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
-      }
+      if (name.isEmpty) name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
       setState(() {
         _timers.add(TimerEntry(
           id: TimerEntry.newId(),
@@ -150,15 +153,9 @@ class _TimersScreenState extends State<TimersScreen> {
         title: Text('Stop “${t.label}”?'),
         content: Text('Save ${formatHms(seconds)} to this category, or discard it?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('Keep timer')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, 'discard'),
-              child: const Text('Discard')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, 'save'),
-              child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Keep timer')),
+          TextButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Discard')),
+          FilledButton(onPressed: () => Navigator.pop(context, 'save'), child: const Text('Save')),
         ],
       ),
     );
@@ -174,7 +171,6 @@ class _TimersScreenState extends State<TimersScreen> {
     } else if (choice == 'discard') {
       await _discard(t);
     }
-    // 'cancel' / null: leave the (now paused) timer in place.
   }
 
   @override
@@ -191,96 +187,100 @@ class _TimersScreenState extends State<TimersScreen> {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'No timers running. Tap “New timer” to start one — you can '
-                  'run several at once.',
+                  'No timers yet.\n\nTap “New timer” to start one — you can run '
+                  'several at the same time. Each timer banks time against a '
+                  'category; press Stop to save it.',
                   textAlign: TextAlign.center,
                 ),
               ),
             )
-          : Column(children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Row(children: [
-                  Icon(Icons.swipe, size: 16, color: Theme.of(context).hintColor),
-                  const SizedBox(width: 6),
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+              itemCount: _timers.length,
+              itemBuilder: (context, i) => _timerCard(_timers[i]),
+            ),
+    );
+  }
+
+  Widget _timerCard(TimerEntry t) {
+    final theme = Theme.of(context);
+    final axis = _axisOf(t.axisKey);
+    final color = axis != null ? colorFromHex(axis.colorHex) : Colors.grey;
+    return Slidable(
+      key: ValueKey(t.id),
+      // Swipe left to delete (kept out of easy reach).
+      endActionPane: ActionPane(
+        motion: const DrawerMotion(),
+        extentRatio: 0.3,
+        children: [
+          SlidableAction(
+            onPressed: (_) => _discard(t),
+            backgroundColor: Colors.red.shade600,
+            foregroundColor: Colors.white,
+            icon: Icons.delete,
+            label: 'Delete',
+          ),
+        ],
+      ),
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 6),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(backgroundColor: color, radius: 8),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Swipe right to stop & save · swipe left to delete',
-                        style: Theme.of(context).textTheme.bodySmall),
-                  ),
-                ]),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 88, top: 4),
-                  itemCount: _timers.length,
-              itemBuilder: (context, i) {
-                final t = _timers[i];
-                final axis = _axisOf(t.axisKey);
-                return Slidable(
-                  key: ValueKey(t.id),
-                  // Slide right → reveal "Stop & save".
-                  startActionPane: ActionPane(
-                    motion: const DrawerMotion(),
-                    extentRatio: 0.3,
-                    children: [
-                      SlidableAction(
-                        onPressed: (_) => _stopConfirm(t),
-                        backgroundColor: Colors.green.shade600,
-                        foregroundColor: Colors.white,
-                        icon: Icons.stop,
-                        label: 'Stop & save',
-                      ),
-                    ],
-                  ),
-                  // Slide left → reveal "Delete" (kept out of easy reach).
-                  endActionPane: ActionPane(
-                    motion: const DrawerMotion(),
-                    extentRatio: 0.3,
-                    children: [
-                      SlidableAction(
-                        onPressed: (_) => _discard(t),
-                        backgroundColor: Colors.red.shade600,
-                        foregroundColor: Colors.white,
-                        icon: Icons.delete,
-                        label: 'Delete',
-                      ),
-                    ],
-                  ),
-                  child: Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            axis != null ? colorFromHex(axis.colorHex) : Colors.grey,
-                        radius: 14,
-                      ),
-                      title: Text(t.label),
-                      subtitle: Text(
-                        '${axis?.label ?? t.axisKey} · ${_clock(t.elapsedSeconds)}'
-                        '${t.isRunning ? ' • running' : ' • paused'}',
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(t.isRunning ? Icons.pause : Icons.play_arrow),
-                            tooltip: t.isRunning ? 'Pause' : 'Resume',
-                            onPressed: () => _toggle(t),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.refresh),
-                            tooltip: 'Reset',
-                            onPressed: () => _reset(t),
-                          ),
-                        ],
-                      ),
+                    child: Text(
+                      t.label,
+                      style: theme.textTheme.titleMedium,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                );
-              },
+                  Text(
+                    '${axis?.label ?? t.axisKey} · ${t.isRunning ? "running" : "paused"}',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  _display(t.elapsedMs),
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    color: t.isRunning ? theme.colorScheme.primary : null,
+                  ),
                 ),
               ),
-            ]),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton.icon(
+                    onPressed: () => _reset(t),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Reset'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: () => _toggle(t),
+                    icon: Icon(t.isRunning ? Icons.pause : Icons.play_arrow),
+                    label: Text(t.isRunning ? 'Pause' : 'Resume'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () => _stopConfirm(t),
+                    icon: const Icon(Icons.stop),
+                    label: const Text('Stop'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
