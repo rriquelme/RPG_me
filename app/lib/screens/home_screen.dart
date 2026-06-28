@@ -1,7 +1,7 @@
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../local/local_engine.dart';
@@ -9,11 +9,10 @@ import '../models.dart';
 import '../repository.dart';
 import '../settings.dart';
 import '../widgets/octagon_chart.dart';
-import 'axes_config_screen.dart';
 import 'heatmap_screen.dart';
 import 'log_screen.dart';
 import 'logged_screen.dart';
-import 'settings_dialog.dart';
+import 'settings_screen.dart';
 import 'time_screen.dart';
 import 'timers_screen.dart';
 
@@ -61,11 +60,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openSettings() async {
     if (_repo == null) return;
-    final updated = await showSettingsDialog(context, _repo!.settings);
-    if (updated != null) {
-      await _repo!.updateSettings(updated);
-      _reload();
-    }
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => SettingsScreen(repo: _repo!)));
+    _reload();
   }
 
   Future<void> _push(Widget screen) async {
@@ -105,19 +102,52 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  Future<void> _export() async {
+  Future<void> _exportLogs() async {
     final repo = _repo;
     if (repo == null) return;
     try {
-      final csv = repo.exportCsv();
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/rpg_me_export.csv');
-      await file.writeAsString(csv);
-      await Share.shareXFiles([XFile(file.path, mimeType: 'text/csv')],
-          subject: 'RPG_me export', text: 'My RPG_me activity log (CSV / Excel).');
+      final file = await repo.exportFile();
+      await Share.shareXFiles([XFile(file.path, mimeType: 'text/markdown')],
+          subject: 'RPG_me logs', text: 'My RPG_me logs (Markdown).');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _importLogs() async {
+    final repo = _repo;
+    if (repo == null) return;
+    try {
+      final res = await FilePicker.platform.pickFiles(type: FileType.any);
+      final path = res?.files.single.path;
+      if (path == null) return;
+      final content = await File(path).readAsString();
+      if (!mounted) return;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Import logs?'),
+          content: const Text(
+              'This replaces all current data on this device with the contents '
+              'of the selected Markdown file. This cannot be undone.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Import')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      await repo.importMarkdown(content);
+      _reload();
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Logs imported.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     }
   }
@@ -129,17 +159,14 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'logged':
         _push(LoggedScreen(repo: repo));
         break;
-      case 'heatmap':
-        _push(HeatmapScreen(repo: repo));
-        break;
       case 'time':
         _push(TimeScreen(repo: repo));
         break;
-      case 'axes':
-        _push(AxesConfigScreen(repo: repo));
-        break;
       case 'export':
-        _export();
+        _exportLogs();
+        break;
+      case 'import':
+        _importLogs();
         break;
       case 'settings':
         _openSettings();
@@ -209,8 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'logged', child: Text('Logged activities')),
                     PopupMenuItem(value: 'time', child: Text('Time tracked')),
-                    PopupMenuItem(value: 'axes', child: Text('Edit axes')),
-                    PopupMenuItem(value: 'export', child: Text('Export CSV (Excel)')),
+                    PopupMenuItem(value: 'export', child: Text('Export logs (.md)')),
+                    PopupMenuItem(value: 'import', child: Text('Import logs (.md)')),
                     PopupMenuItem(value: 'settings', child: Text('Settings')),
                   ],
                 ),
@@ -241,8 +268,6 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     final average = repo.settings.averagePerDay;
-    final weekly = summary.countsLast7Days.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -286,21 +311,13 @@ class _HomeScreenState extends State<HomeScreen> {
           formatValue: (v) => _formatValue(v, average),
         ),
         const SizedBox(height: 24),
-        Text('This week', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        if (weekly.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Text('Nothing logged in the last 7 days. Tap “Log”.'),
-          )
-        else
-          ...weekly.map((e) => ListTile(
-                dense: true,
-                leading: const Icon(Icons.repeat),
-                title: Text(e.key),
-                trailing: Text('×${e.value}',
-                    style: Theme.of(context).textTheme.titleMedium),
-              )),
+        Center(
+          child: OutlinedButton.icon(
+            onPressed: () => _push(LoggedScreen(repo: repo)),
+            icon: const Icon(Icons.list_alt),
+            label: const Text('View logs'),
+          ),
+        ),
       ],
     );
   }

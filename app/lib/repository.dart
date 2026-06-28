@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'api.dart';
 import 'local/event.dart';
 import 'local/local_engine.dart';
@@ -171,33 +173,15 @@ class Repository {
   Future<List<TimerEntry>> loadTimers() => _store.loadTimers();
   Future<void> saveTimers(List<TimerEntry> timers) => _store.saveTimers(timers);
 
-  // --- CSV / Excel export -------------------------------------------------
-  String exportCsv() {
-    final label = {for (final a in _axes) a.key: a.label};
-    String two(int n) => n.toString().padLeft(2, '0');
-    String esc(String s) =>
-        (s.contains(',') || s.contains('"') || s.contains('\n'))
-            ? '"${s.replaceAll('"', '""')}"'
-            : s;
-    final rows = <String>[
-      'date,time,category,activity,seconds,hours,exp,note,synced'
-    ];
-    final sorted = [..._events]..sort((a, b) => a.timestamp.compareTo(b.timestamp));
-    for (final e in sorted) {
-      final d = e.timestamp;
-      rows.add([
-        '${d.year}-${two(d.month)}-${two(d.day)}',
-        '${two(d.hour)}:${two(d.minute)}',
-        esc(label[e.axisKey] ?? e.axisKey),
-        esc(e.name),
-        e.seconds.toString(),
-        (e.seconds / 3600).toStringAsFixed(2),
-        e.exp.toString(),
-        esc(e.note),
-        e.synced.toString(),
-      ].join(','));
-    }
-    return rows.join('\n');
+  // --- Markdown export / import ------------------------------------------
+  /// The on-disk Markdown log file (`rpg_me/data.md`) to share/back up.
+  Future<File> exportFile() => _store.currentFile();
+
+  /// Replace all data from a previously exported Markdown log, then reload.
+  Future<void> importMarkdown(String content) async {
+    await _store.importMarkdown(content);
+    _events = await _store.loadEvents();
+    _axes = await _store.loadAxes();
   }
 
   // --- sync ---------------------------------------------------------------

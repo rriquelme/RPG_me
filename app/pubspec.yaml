@@ -1,7 +1,7 @@
 name: rpg_me
 description: "RPG your life — an 8-axis octagon tracker for your routines."
 publish_to: "none"
-version: 0.9.0+9
+version: 0.10.0+10
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -14,6 +14,7 @@ dependencies:
   path_provider: ^2.1.4
   share_plus: ^10.1.1
   flutter_slidable: ^3.1.1
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:

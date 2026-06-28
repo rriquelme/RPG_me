@@ -125,6 +125,18 @@ class LocalStore {
 
   Future<void> _flush() async => (await _mdFile()).writeAsString(_renderMarkdown(_cache!));
 
+  /// The current data.md file (ensuring it exists), for export/back-up.
+  Future<File> currentFile() async {
+    await _data();
+    return _mdFile();
+  }
+
+  /// Replace all data from exported Markdown content (parses its JSON blocks).
+  Future<void> importMarkdown(String content) async {
+    _cache = _parseMarkdown(content);
+    await _flush();
+  }
+
   Future<void> _setSection(String key, Object value) async {
     final data = await _data();
     data[key] = value;
