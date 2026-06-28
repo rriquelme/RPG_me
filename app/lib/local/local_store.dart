@@ -4,63 +4,126 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models.dart';
 import 'event.dart';
 import 'local_engine.dart';
 import 'timer_entry.dart';
 
-/// Persists the offline data (events, axis config, running timers) to a JSON
-/// file in the app's documents folder, so it survives app updates and is easy
-/// to back up. On first run it migrates any data from the older
-/// shared_preferences storage.
+/// Persists the offline data to a **Markdown** file in the app's documents
+/// folder (`rpg_me/data.md`): a human-readable table of logged activities, plus
+/// fenced JSON blocks (events, axes, timers) that are the round-trip source of
+/// truth. Migrates from the older data.json / shared_preferences on first read.
 class LocalStore {
   static const _folder = 'rpg_me';
-  static const _fileName = 'data.json';
+  static const _mdName = 'data.md';
+  static const _jsonName = 'data.json'; // legacy (v0.7)
 
-  // Legacy shared_preferences keys (pre-0.7) — migrated on first file read.
   static const _legacyEvents = 'events_v1';
   static const _legacyAxes = 'axes_v1';
   static const _legacyTimers = 'timers_v1';
 
   Map<String, dynamic>? _cache;
 
-  Future<File> _file() async {
+  Future<Directory> _dir() async {
     final dir = await getApplicationDocumentsDirectory();
     final folder = Directory('${dir.path}/$_folder');
     if (!await folder.exists()) await folder.create(recursive: true);
-    return File('${folder.path}/$_fileName');
+    return folder;
   }
+
+  Future<File> _mdFile() async => File('${(await _dir()).path}/$_mdName');
+  Future<File> _jsonFile() async => File('${(await _dir()).path}/$_jsonName');
 
   Future<Map<String, dynamic>> _data() async {
     if (_cache != null) return _cache!;
-    final file = await _file();
-    if (await file.exists()) {
-      try {
-        _cache = (jsonDecode(await file.readAsString()) as Map).cast<String, dynamic>();
-      } catch (_) {
-        _cache = {};
-      }
+    final md = await _mdFile();
+    if (await md.exists()) {
+      _cache = _parseMarkdown(await md.readAsString());
     } else {
-      _cache = await _migrateFromPrefs();
-      await _flush(); // seed the file
+      final legacy = await _jsonFile();
+      if (await legacy.exists()) {
+        try {
+          _cache = (jsonDecode(await legacy.readAsString()) as Map).cast<String, dynamic>();
+        } catch (_) {
+          _cache = _empty();
+        }
+      } else {
+        _cache = await _migrateFromPrefs();
+      }
+      await _flush(); // write the markdown file
     }
     return _cache!;
   }
 
+  Map<String, dynamic> _empty() => {'events': [], 'axes': [], 'timers': []};
+
   Future<Map<String, dynamic>> _migrateFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    List<dynamic> decode(String? raw) =>
+    List<dynamic> dec(String? raw) =>
         (raw == null || raw.isEmpty) ? [] : (jsonDecode(raw) as List);
     return {
-      'events': decode(prefs.getString(_legacyEvents)),
-      'axes': decode(prefs.getString(_legacyAxes)),
-      'timers': decode(prefs.getString(_legacyTimers)),
+      'events': dec(prefs.getString(_legacyEvents)),
+      'axes': dec(prefs.getString(_legacyAxes)),
+      'timers': dec(prefs.getString(_legacyTimers)),
     };
   }
 
-  Future<void> _flush() async {
-    final file = await _file();
-    await file.writeAsString(jsonEncode(_cache));
+  /// The JSON blocks (events, axes, timers in that order) are the source of
+  /// truth; the human table above them is regenerated on write and ignored here.
+  Map<String, dynamic> _parseMarkdown(String content) {
+    final blocks = RegExp(r'```json\s*\n(.*?)\n```', dotAll: true)
+        .allMatches(content)
+        .map((m) => m.group(1) ?? '[]')
+        .toList();
+    List<dynamic> decode(int i) {
+      if (i >= blocks.length) return [];
+      try {
+        return jsonDecode(blocks[i]) as List;
+      } catch (_) {
+        return [];
+      }
+    }
+
+    return {'events': decode(0), 'axes': decode(1), 'timers': decode(2)};
   }
+
+  String _renderMarkdown(Map<String, dynamic> data) {
+    final events = (data['events'] as List).cast<Map<String, dynamic>>();
+    final axes = (data['axes'] as List).cast<Map<String, dynamic>>();
+    final labels = {for (final a in axes) a['key']: (a['label'] ?? a['key'])};
+    String two(int n) => n.toString().padLeft(2, '0');
+    String cell(Object? v) => v.toString().replaceAll('|', '/').replaceAll('\n', ' ');
+
+    final sb = StringBuffer()
+      ..writeln('# RPG_me — activity log\n')
+      ..writeln('A human-readable log. The JSON blocks at the bottom are the '
+          'source of truth — edit those (or use the app), not the table.\n')
+      ..writeln('## Logged activities (${events.length})\n')
+      ..writeln('| Date | Time | Category | Activity | Duration | Exp |')
+      ..writeln('|------|------|----------|----------|----------|-----|');
+
+    final sorted = [...events]
+      ..sort((a, b) => (b['timestamp'] ?? '').toString().compareTo((a['timestamp'] ?? '').toString()));
+    for (final e in sorted) {
+      final ts = DateTime.tryParse((e['timestamp'] ?? '').toString());
+      final date = ts == null ? '' : '${ts.year}-${two(ts.month)}-${two(ts.day)}';
+      final time = ts == null ? '' : '${two(ts.hour)}:${two(ts.minute)}';
+      final secs = (e['seconds'] ?? 0) as int;
+      final dur = secs > 0 ? formatHms(secs) : '—';
+      sb.writeln('| $date | $time | ${cell(labels[e['axis_key']] ?? e['axis_key'])} '
+          '| ${cell(e['name'])} | $dur | ${e['exp']} |');
+    }
+
+    const enc = JsonEncoder.withIndent('  ');
+    sb
+      ..writeln('\n## Data (source of truth — do not hand-edit unless you know the schema)\n')
+      ..writeln('### events\n```json\n${enc.convert(events)}\n```\n')
+      ..writeln('### axes\n```json\n${enc.convert(axes)}\n```\n')
+      ..writeln('### timers\n```json\n${enc.convert(data['timers'] ?? [])}\n```');
+    return sb.toString();
+  }
+
+  Future<void> _flush() async => (await _mdFile()).writeAsString(_renderMarkdown(_cache!));
 
   Future<void> _setSection(String key, Object value) async {
     final data = await _data();

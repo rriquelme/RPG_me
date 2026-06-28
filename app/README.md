@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.9
+
+- **Frequency is the default** for the octagon and the heatmap.
+- **Heatmap upgrades**: weekday labels (M–S) down the left; **tap any day** to
+  see that day's frequency and time spent; coloured by frequency — one log is
+  a light cell, more logs are progressively darker (1 / 2 / 3 / 4+).
+- **Markdown storage**: data is now saved as `rpg_me/data.md` — a readable
+  table of your logged activities plus JSON blocks as the source of truth.
+  Migrated automatically from the previous file.
+
 ## What's new in 0.8
 
 - **Frequency octagon** — the home toggle is now **Hours · Frequency ·
