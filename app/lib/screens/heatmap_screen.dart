@@ -6,9 +6,10 @@ import '../repository.dart';
 
 enum _Metric { count, time }
 
-/// GitHub-contributions-style calendars: one **global** grid for all activity,
-/// and one below it that can be **filtered by category**. A single metric
-/// toggle (time spent / frequency) applies to both.
+/// GitHub-contributions-style calendars: a **global** grid for all activity and
+/// one below it filtered by category. Defaults to **frequency** (how many times
+/// per day); a single log is a light cell, more are darker. Tap any day to see
+/// its frequency and time spent. A toggle switches the shading to time spent.
 class HeatmapScreen extends StatefulWidget {
   final Repository repo;
   const HeatmapScreen({super.key, required this.repo});
@@ -18,7 +19,7 @@ class HeatmapScreen extends StatefulWidget {
 }
 
 class _HeatmapScreenState extends State<HeatmapScreen> {
-  _Metric _metric = _Metric.time;
+  _Metric _metric = _Metric.count; // frequency is primary
   Map<String, int> _globalCounts = {};
   Map<String, int> _globalSeconds = {};
   List<AxisDef> _axes = [];
@@ -59,11 +60,6 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     }
   }
 
-  Map<String, int> _data(bool global) {
-    if (_metric == _Metric.count) return global ? _globalCounts : _filteredCounts;
-    return global ? _globalSeconds : _filteredSeconds;
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -80,8 +76,8 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         children: [
           SegmentedButton<_Metric>(
             segments: const [
-              ButtonSegment(value: _Metric.time, label: Text('Time spent')),
               ButtonSegment(value: _Metric.count, label: Text('Frequency')),
+              ButtonSegment(value: _Metric.time, label: Text('Time spent')),
             ],
             selected: {_metric},
             onSelectionChanged: (s) => setState(() => _metric = s.first),
@@ -89,7 +85,12 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
           const SizedBox(height: 20),
           Text('All activity', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          HeatGrid(data: _data(true), isTime: isTime, baseColor: const Color(0xFF2E9E4F)),
+          HeatGrid(
+            counts: _globalCounts,
+            seconds: _globalSeconds,
+            isTime: isTime,
+            baseColor: const Color(0xFF2E9E4F),
+          ),
           const SizedBox(height: 28),
           const Divider(),
           const SizedBox(height: 12),
@@ -118,7 +119,8 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
           ),
           const SizedBox(height: 8),
           HeatGrid(
-            data: _data(false),
+            counts: _filteredCounts,
+            seconds: _filteredSeconds,
             isTime: isTime,
             baseColor: _axisKey == null
                 ? Theme.of(context).colorScheme.primary
@@ -130,27 +132,54 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 }
 
-/// A single 26-week heatmap grid + legend, scaled to its own max value.
+/// A single 26-week heatmap grid with weekday labels and tappable days.
 class HeatGrid extends StatelessWidget {
-  final Map<String, int> data;
+  final Map<String, int> counts;
+  final Map<String, int> seconds;
   final bool isTime;
   final Color baseColor;
   static const _weeks = 26;
+  static const _cell = 15.0;
+  static const _margin = 2.0;
+  static const _row = _cell + 2 * _margin; // total height of one day row
+
+  static const _weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const HeatGrid({
     super.key,
-    required this.data,
+    required this.counts,
+    required this.seconds,
     required this.isTime,
     required this.baseColor,
   });
 
-  Color _cell(BuildContext context, int value, int max) {
-    if (value <= 0 || max <= 0) {
-      return Theme.of(context).colorScheme.surfaceContainerHighest;
+  /// Frequency: absolute buckets (1 light → 4+ darkest). Time: relative to max.
+  Color _color(BuildContext context, int count, int secs, int maxSecs) {
+    final empty = Theme.of(context).colorScheme.surfaceContainerHighest;
+    if (isTime) {
+      if (secs <= 0 || maxSecs <= 0) return empty;
+      final r = secs / maxSecs;
+      final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
+      return baseColor.withOpacity(o);
     }
-    final r = value / max;
-    final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
+    if (count <= 0) return empty;
+    final o = count == 1 ? 0.32 : (count == 2 ? 0.52 : (count == 3 ? 0.74 : 1.0));
     return baseColor.withOpacity(o);
+  }
+
+  void _showDay(BuildContext context, DateTime date, int count, int secs) {
+    final label = '${_dayNames[date.weekday - 1]} ${date.day} ${_months[date.month - 1]} ${date.year}';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(label),
+        content: Text('Logged $count time${count == 1 ? '' : 's'}'
+            '${secs > 0 ? '\nTime spent: ${formatHms(secs)}' : ''}'),
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
+      ),
+    );
   }
 
   @override
@@ -159,41 +188,68 @@ class HeatGrid extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final monday = today.subtract(Duration(days: today.weekday - 1));
     final start = monday.subtract(const Duration(days: (_weeks - 1) * 7));
-    final maxVal = data.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxSecs = seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxCount = counts.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final labelStyle = Theme.of(context).textTheme.bodySmall;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          reverse: true,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: List.generate(_weeks, (w) {
-              return Column(
-                children: List.generate(7, (d) {
-                  final date = start.add(Duration(days: w * 7 + d));
-                  final future = date.isAfter(today);
-                  final value = future ? 0 : (data[LocalEngine.dayKey(date)] ?? 0);
-                  return Container(
-                    width: 15,
-                    height: 15,
-                    margin: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: future ? Colors.transparent : _cell(context, value, maxVal),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  );
-                }),
-              );
-            }),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Weekday labels on the left.
+            Column(
+              children: List.generate(
+                7,
+                (d) => SizedBox(
+                  height: _row,
+                  width: 22,
+                  child: Center(child: Text(_weekdays[d], style: labelStyle)),
+                ),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                reverse: true,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: List.generate(_weeks, (w) {
+                    return Column(
+                      children: List.generate(7, (d) {
+                        final date = start.add(Duration(days: w * 7 + d));
+                        final future = date.isAfter(today);
+                        final k = LocalEngine.dayKey(date);
+                        final c = future ? 0 : (counts[k] ?? 0);
+                        final s = future ? 0 : (seconds[k] ?? 0);
+                        return GestureDetector(
+                          onTap: future ? null : () => _showDay(context, date, c, s),
+                          child: Container(
+                            width: _cell,
+                            height: _cell,
+                            margin: const EdgeInsets.all(_margin),
+                            decoration: BoxDecoration(
+                              color: future
+                                  ? Colors.transparent
+                                  : _color(context, c, s, maxSecs),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        );
+                      }),
+                    );
+                  }),
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 8),
         Row(children: [
-          Text('Less', style: Theme.of(context).textTheme.bodySmall),
+          Text('Less', style: labelStyle),
           const SizedBox(width: 6),
-          ...[0.35, 0.55, 0.78, 1.0].map((o) => Container(
+          ...[0.32, 0.52, 0.74, 1.0].map((o) => Container(
                 width: 13,
                 height: 13,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
@@ -203,13 +259,13 @@ class HeatGrid extends StatelessWidget {
                 ),
               )),
           const SizedBox(width: 6),
-          Text('More', style: Theme.of(context).textTheme.bodySmall),
+          Text('More', style: labelStyle),
           const Spacer(),
           Text(
-            maxVal == 0
-                ? 'No data'
-                : 'peak ${isTime ? formatHms(maxVal) : '$maxVal'}',
-            style: Theme.of(context).textTheme.bodySmall,
+            isTime
+                ? (maxSecs == 0 ? 'No data' : 'peak ${formatHms(maxSecs)}')
+                : (maxCount == 0 ? 'No data' : 'peak $maxCount×'),
+            style: labelStyle,
           ),
         ]),
       ],

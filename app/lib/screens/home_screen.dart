@@ -31,7 +31,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Summary? _summary;
   OctagonView? _octView;
   bool _syncing = false;
-  OctagonMetric _metric = OctagonMetric.hours;
+  OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
 
   @override
   void initState() {
