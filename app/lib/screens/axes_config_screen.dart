@@ -38,7 +38,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   void _add() {
     if (_axes.length >= kMaxAxes) return;
     final color = kAxisPalette[_axes.length % kAxisPalette.length];
-    setState(() => _axes.add(AxisDef(_newKey(), 'New axis', '', color)));
+    setState(() => _axes.add(AxisDef(_newKey(), 'New category', '', color)));
   }
 
   void _remove(int i) {
@@ -118,7 +118,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     final canRemove = _axes.length > kMinAxes;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Edit octagon axes'),
+        title: const Text('Edit categories'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -134,7 +134,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    '${_axes.length} axes (allowed: $kMinAxes–$kMaxAxes). '
+                    '${_axes.length} categories (allowed: $kMinAxes–$kMaxAxes). '
                     'Tap a colour to change it; drag ☰ to reorder.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
@@ -175,7 +175,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes axes',
+                        tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes categories',
                         onPressed: canRemove ? () => _remove(i) : null,
                       ),
                       ReorderableDragStartListener(
@@ -196,7 +196,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: canAdd ? _add : null,
         icon: const Icon(Icons.add),
-        label: Text(canAdd ? 'Add axis' : 'Max $kMaxAxes'),
+        label: Text(canAdd ? 'Add category' : 'Max $kMaxAxes'),
       ),
     );
   }

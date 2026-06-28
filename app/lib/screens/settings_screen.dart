@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../repository.dart';
 import '../settings.dart';
-import 'axes_config_screen.dart';
 
-/// Settings: API settings (for optional sync) and Edit axes.
+/// Settings: API settings (for optional sync).
 class SettingsScreen extends StatefulWidget {
   final Repository repo;
   const SettingsScreen({super.key, required this.repo});
@@ -39,13 +38,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('API settings saved.')));
     }
-  }
-
-  Future<void> _editAxes() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AxesConfigScreen(repo: widget.repo)),
-    );
-    setState(() {});
   }
 
   @override
@@ -86,15 +78,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: _saveApi,
               child: const Text('Save API settings'),
             ),
-          ),
-          const Divider(height: 40),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.tune),
-            title: const Text('Edit axes'),
-            subtitle: const Text('Rename, recolour, add/remove, reorder (4–10)'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _editAxes,
           ),
         ],
       ),

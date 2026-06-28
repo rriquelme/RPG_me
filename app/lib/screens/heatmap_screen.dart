@@ -75,6 +75,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           SegmentedButton<_Metric>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(value: _Metric.count, label: Text('Frequency')),
               ButtonSegment(value: _Metric.time, label: Text('Time spent')),
