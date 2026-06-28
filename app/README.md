@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.10
+
+- **Edit axes moved into Settings**, alongside the renamed **API settings**.
+- **Export / Import logs (Markdown)** replaces the CSV export. Export shares
+  the standard `data.md`; Import replaces this device's data from a previously
+  exported `.md` — the format is stable across versions for portability.
+- **Home screen**: the "this week" list is gone; a **View logs** button (and
+  the new menu items) take its place.
+
 ## What's new in 0.9
 
 - **Frequency is the default** for the octagon and the heatmap.
@@ -154,7 +163,12 @@ cd app
 flutter create --platforms=android --org com.rpgme --project-name rpg_me .
 git checkout -- pubspec.yaml lib/main.dart
 
-# 2. Fetch packages and build
+# 2. Some plugins (file_picker) require compileSdk 36 — bump it if your
+#    generated template is lower:
+sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' \
+  android/app/build.gradle.kts 2>/dev/null || true
+
+# 3. Fetch packages and build
 flutter pub get
 flutter test                 # runs the model tests
 flutter build apk --release  # -> build/app/outputs/flutter-apk/app-release.apk

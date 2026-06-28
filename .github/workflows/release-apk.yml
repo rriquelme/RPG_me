@@ -47,6 +47,37 @@ jobs:
           flutter create --platforms=android --org com.rpgme --project-name rpg_me .
           git checkout -- pubspec.yaml lib/main.dart analysis_options.yaml
           rm -f test/widget_test.dart
+          # Some plugins (file_picker -> flutter_plugin_android_lifecycle) now
+          # require compileSdk 36. Force it on the app module AND on every
+          # plugin subproject (plugins don't inherit the app's compileSdk here).
+          for f in android/app/build.gradle android/app/build.gradle.kts; do
+            [ -f "$f" ] || continue
+            sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$f"
+            sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$f"
+          done
+          if [ -f android/build.gradle.kts ]; then
+            cat >> android/build.gradle.kts <<'GRADLE'
+
+          subprojects {
+              fun forceSdk() {
+                  extensions.findByName("android")?.withGroovyBuilder { "compileSdkVersion"(36) }
+              }
+              if (state.executed) forceSdk() else afterEvaluate { forceSdk() }
+          }
+          GRADLE
+          fi
+          if [ -f android/build.gradle ]; then
+            cat >> android/build.gradle <<'GRADLE'
+
+          subprojects {
+              def forceSdk = {
+                  if (it.hasProperty('android')) { it.android { compileSdkVersion 36 } }
+              }
+              if (project.state.executed) { forceSdk(project) }
+              else { afterEvaluate { forceSdk(it) } }
+          }
+          GRADLE
+          fi
 
       - name: Install packages
         working-directory: app
@@ -80,10 +111,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]') }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.9.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.10.0' }}
           target_commitish: ${{ github.sha }}
           files: app/rpg_me.apk
-          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.9.0' }}
+          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.10.0' }}
           body: |
             **Offline-first RPG_me — Android app.**
 
