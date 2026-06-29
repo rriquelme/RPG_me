@@ -5,6 +5,43 @@ import 'event.dart';
 const int kMinAxes = 3;
 const int kMaxAxes = 10;
 
+/// Per-day breakdown for the "all subcategories" heatmap: total counts/seconds
+/// per calendar day and the dominant subcategory name that day.
+class SubcatDays {
+  final Map<String, int> counts;
+  final Map<String, int> seconds;
+  final Map<String, String> dominant; // dayKey -> subcategory name
+  const SubcatDays({
+    required this.counts,
+    required this.seconds,
+    required this.dominant,
+  });
+}
+
+/// One configured subcategory within an axis: a name and an optional colour
+/// (empty colour falls back to the parent axis's colour).
+class SubcategoryDef {
+  final String name;
+  final String colorHex;
+  const SubcategoryDef(this.name, [this.colorHex = '']);
+
+  SubcategoryDef copyWith({String? name, String? colorHex}) =>
+      SubcategoryDef(name ?? this.name, colorHex ?? this.colorHex);
+
+  Map<String, dynamic> toJson() =>
+      {'name': name, if (colorHex.isNotEmpty) 'color': colorHex};
+
+  /// Accepts either a plain string (legacy form) or a {name,color} map.
+  factory SubcategoryDef.fromJson(dynamic j) {
+    if (j is String) return SubcategoryDef(j);
+    final m = (j as Map).cast<String, dynamic>();
+    return SubcategoryDef(
+      (m['name'] ?? m['label'] ?? '').toString(),
+      (m['color'] ?? '') as String,
+    );
+  }
+}
+
 /// One configured octagon axis (mirrors the backend's data/config.json).
 class AxisDef {
   final String key;
@@ -17,7 +54,7 @@ class AxisDef {
 
   /// Optional subcategories (empty by default). Used for finer logging and the
   /// per-subcategory dashboard.
-  final List<String> subcategories;
+  final List<SubcategoryDef> subcategories;
 
   const AxisDef(
     this.key,
@@ -28,12 +65,24 @@ class AxisDef {
     this.subcategories = const [],
   });
 
+  /// Just the subcategory names, in order.
+  List<String> get subcategoryNames =>
+      subcategories.map((s) => s.name).toList();
+
+  /// The subcategory with this name, or null.
+  SubcategoryDef? subcategoryByName(String name) {
+    for (final s in subcategories) {
+      if (s.name == name) return s;
+    }
+    return null;
+  }
+
   AxisDef copyWith({
     String? label,
     String? description,
     String? colorHex,
     bool? hidden,
-    List<String>? subcategories,
+    List<SubcategoryDef>? subcategories,
   }) =>
       AxisDef(
         key,
@@ -50,7 +99,8 @@ class AxisDef {
         'description': description,
         'color': colorHex,
         if (hidden) 'hidden': true,
-        if (subcategories.isNotEmpty) 'subcategories': subcategories,
+        if (subcategories.isNotEmpty)
+          'subcategories': subcategories.map((s) => s.toJson()).toList(),
       };
 
   factory AxisDef.fromJson(Map<String, dynamic> j) => AxisDef(
@@ -60,7 +110,7 @@ class AxisDef {
         (j['color'] ?? '#4C72B0') as String,
         hidden: (j['hidden'] ?? false) as bool,
         subcategories: ((j['subcategories'] ?? const []) as List)
-            .map((e) => e.toString())
+            .map(SubcategoryDef.fromJson)
             .toList(),
       );
 }
@@ -263,6 +313,36 @@ class LocalEngine {
       m[k] = (m[k] ?? 0) + 1;
     }
     return m;
+  }
+
+  /// For the "all subcategories" heatmap of one axis: per calendar day, the
+  /// total subcategory-tagged counts and seconds, plus the dominant subcategory
+  /// (the one logged most that day). Only events that carry a subcategory count.
+  SubcatDays subcategoryDays(String axisKey) {
+    final perDaySub = <String, Map<String, int>>{}; // day -> sub -> count
+    final counts = <String, int>{};
+    final seconds = <String, int>{};
+    for (final e in events) {
+      if (e.axisKey != axisKey || e.subcategory.isEmpty) continue;
+      final day = dayKey(e.timestamp);
+      (perDaySub[day] ??= <String, int>{})
+          .update(e.subcategory, (v) => v + 1, ifAbsent: () => 1);
+      counts[day] = (counts[day] ?? 0) + 1;
+      seconds[day] = (seconds[day] ?? 0) + e.seconds;
+    }
+    final dominant = <String, String>{};
+    perDaySub.forEach((day, subs) {
+      var best = '';
+      var bestN = -1;
+      subs.forEach((name, n) {
+        if (n > bestN) {
+          bestN = n;
+          best = name;
+        }
+      });
+      dominant[day] = best;
+    });
+    return SubcatDays(counts: counts, seconds: seconds, dominant: dominant);
   }
 
   /// Tracked seconds per calendar day (time-spent heatmap), optionally filtered

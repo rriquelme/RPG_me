@@ -1,7 +1,7 @@
 name: rpg_me
 description: "RPG your life — an 8-axis octagon tracker for your routines."
 publish_to: "none"
-version: 0.17.0+17
+version: 0.18.0+18
 
 environment:
   sdk: ">=3.0.0 <4.0.0"

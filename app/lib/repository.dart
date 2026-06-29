@@ -111,6 +111,11 @@ class Repository {
   Future<Map<String, int>> dailySeconds({String? axisKey, String? subcategory}) async =>
       _engine.dailySeconds(axisKey: axisKey, subcategory: subcategory);
 
+  /// Per-day breakdown of an axis's subcategories (counts/seconds + the
+  /// dominant subcategory each day), for the "all subcategories" heatmap.
+  Future<SubcatDays> subcategoryDays(String axisKey) async =>
+      _engine.subcategoryDays(axisKey);
+
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.
   List<Event> allEvents() {

@@ -40,11 +40,13 @@ class _LogScreenState extends State<LogScreen> {
   String? _error;
 
   // Activity heatmaps shown at the top when the setting is on: one for the
-  // whole category, and (when a subcategory is picked) one for that subcategory.
+  // whole category, and one for the subcategories — either a single picked
+  // subcategory, or (by default) all of them coloured by the day's dominant.
   Map<String, int> _catCounts = {};
   Map<String, int> _catSeconds = {};
   Map<String, int> _subCounts = {};
   Map<String, int> _subSeconds = {};
+  Map<String, Color>? _subDayColors; // set for the "all subcategories" view
 
   @override
   void initState() {
@@ -70,10 +72,17 @@ class _LogScreenState extends State<LogScreen> {
     final axis = _axisFor(_selectedAxis);
     if (ex != null &&
         ex.subcategory.isNotEmpty &&
-        (axis?.subcategories.contains(ex.subcategory) ?? false)) {
+        (axis?.subcategoryNames.contains(ex.subcategory) ?? false)) {
       _selectedSub = ex.subcategory;
     }
     if (widget.repo.settings.showDashboardOnLog) _loadActivity();
+  }
+
+  /// Resolve a subcategory's colour, falling back to [fallback] when it has no
+  /// custom colour set.
+  Color _subColor(AxisDef axis, String subName, Color fallback) {
+    final hex = axis.subcategoryByName(subName)?.colorHex ?? '';
+    return hex.isEmpty ? fallback : colorFromHex(hex);
   }
 
   AxisDef? _axisFor(String? key) {
@@ -84,26 +93,43 @@ class _LogScreenState extends State<LogScreen> {
   }
 
   /// Refresh both activity heatmaps for the current selection. The category
-  /// chart always shows the whole category; the subcategory chart reflects the
-  /// picked subcategory (empty until one is chosen). The "last click" wins.
+  /// chart always shows the whole category. The subcategory chart shows the
+  /// picked subcategory (in its colour); with none picked it shows all
+  /// subcategories, each day coloured by that day's dominant subcategory. The
+  /// "last click" wins.
   Future<void> _loadActivity() async {
     final key = _selectedAxis;
     if (key == null) return;
+    final axis = _axisFor(key);
     final cat = await widget.repo.dailyCounts(axisKey: key);
     final catS = await widget.repo.dailySeconds(axisKey: key);
+
+    var subC = <String, int>{};
+    var subS = <String, int>{};
+    Map<String, Color>? dayColors;
     final sub = _selectedSub;
-    final subC = sub == null
-        ? <String, int>{}
-        : await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
-    final subS = sub == null
-        ? <String, int>{}
-        : await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
+    if (axis != null && axis.subcategories.isNotEmpty) {
+      if (sub == null) {
+        final days = await widget.repo.subcategoryDays(key);
+        subC = days.counts;
+        subS = days.seconds;
+        final fallback = colorFromHex(axis.colorHex);
+        dayColors = {
+          for (final e in days.dominant.entries)
+            e.key: _subColor(axis, e.value, fallback),
+        };
+      } else {
+        subC = await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
+        subS = await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
+      }
+    }
     if (mounted) {
       setState(() {
         _catCounts = cat;
         _catSeconds = catS;
         _subCounts = subC;
         _subSeconds = subS;
+        _subDayColors = dayColors;
       });
     }
   }
@@ -208,21 +234,25 @@ class _LogScreenState extends State<LogScreen> {
                   selectionKey: 'cat/$_selectedAxis',
                 ),
                 // Dashboard 2 (the "3rd"): only when the category has
-                // subcategories — the selected subcategory's activity. By
-                // default no subcategory is picked, so it prompts to choose one.
+                // subcategories. With none picked it shows ALL subcategories,
+                // each day coloured by that day's dominant subcategory; pick one
+                // to see just that subcategory's activity in its own colour.
                 if (axis.subcategories.isNotEmpty) ...[
                   const SizedBox(height: 12),
-                  if (_selectedSub == null)
-                    _ActivityPlaceholder(label: axis.label)
-                  else
-                    _ActivityCard(
-                      title: 'Activity · ${axis.label} › $_selectedSub',
-                      counts: _subCounts,
-                      seconds: _subSeconds,
-                      baseColor: colorFromHex(axis.colorHex),
-                      firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-                      selectionKey: 'sub/$_selectedAxis/$_selectedSub',
-                    ),
+                  _ActivityCard(
+                    title: _selectedSub == null
+                        ? 'Activity · ${axis.label} › all subcategories'
+                        : 'Activity · ${axis.label} › $_selectedSub',
+                    counts: _subCounts,
+                    seconds: _subSeconds,
+                    baseColor: _selectedSub == null
+                        ? colorFromHex(axis.colorHex)
+                        : _subColor(
+                            axis, _selectedSub!, colorFromHex(axis.colorHex)),
+                    firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+                    selectionKey: 'sub/$_selectedAxis/$_selectedSub',
+                    dayColors: _subDayColors,
+                  ),
                 ],
                 const SizedBox(height: 20),
               ],
@@ -273,12 +303,22 @@ class _LogScreenState extends State<LogScreen> {
                 const SizedBox(height: 4),
                 DropdownButtonFormField<String?>(
                   value: _selectedSub,
-                  decoration: const InputDecoration(labelText: 'Subcategory (optional)'),
+                  decoration: const InputDecoration(labelText: 'Subcategory'),
                   items: [
                     const DropdownMenuItem<String?>(
-                        value: null, child: Text('None')),
-                    ...axis.subcategories.map((s) =>
-                        DropdownMenuItem<String?>(value: s, child: Text(s))),
+                        value: null, child: Text('All subcategories')),
+                    ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
+                          value: s.name,
+                          child: Row(children: [
+                            Container(
+                                width: 12,
+                                height: 12,
+                                color: _subColor(
+                                    axis, s.name, colorFromHex(axis.colorHex))),
+                            const SizedBox(width: 8),
+                            Text(s.name),
+                          ]),
+                        )),
                   ],
                   onChanged: (v) {
                     setState(() => _selectedSub = v);
@@ -341,9 +381,9 @@ class _LogScreenState extends State<LogScreen> {
 }
 
 /// The activity dashboard shown at the top of the Log screen when "View
-/// dashboard on log creation" is enabled: the GitHub-style heatmap of the
-/// selected category — or, if a subcategory is chosen, of that subcategory.
-/// Rebuilds whenever the selection changes (keyed on [selectionKey]).
+/// dashboard on log creation" is enabled: a GitHub-style heatmap. Used for the
+/// category, a single subcategory, or — with [dayColors] — all subcategories
+/// coloured by each day's dominant one. Rebuilds when [selectionKey] changes.
 class _ActivityCard extends StatelessWidget {
   final String title;
   final Map<String, int> counts;
@@ -351,6 +391,7 @@ class _ActivityCard extends StatelessWidget {
   final Color baseColor;
   final int firstDayOfWeek;
   final String selectionKey;
+  final Map<String, Color>? dayColors;
   const _ActivityCard({
     required this.title,
     required this.counts,
@@ -358,6 +399,7 @@ class _ActivityCard extends StatelessWidget {
     required this.baseColor,
     required this.firstDayOfWeek,
     required this.selectionKey,
+    this.dayColors,
   });
 
   @override
@@ -380,38 +422,7 @@ class _ActivityCard extends StatelessWidget {
               isTime: false,
               baseColor: baseColor,
               firstDayOfWeek: firstDayOfWeek,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Placeholder for the subcategory activity dashboard before a subcategory is
-/// picked (it defaults to none).
-class _ActivityPlaceholder extends StatelessWidget {
-  final String label;
-  const _ActivityPlaceholder({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(Icons.account_tree_outlined,
-                size: 18, color: theme.colorScheme.outline),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Pick a $label subcategory below to see its activity.',
-                style: theme.textTheme.bodyMedium
-                    ?.copyWith(color: theme.colorScheme.outline),
-              ),
+              dayColors: dayColors,
             ),
           ],
         ),

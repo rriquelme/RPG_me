@@ -81,17 +81,46 @@ void main() {
     expect(back.subcategories, isEmpty);
   });
 
-  test('AxisDef round-trips hidden flag and subcategories', () {
-    const a = AxisDef('health', 'Health', '', '#DD5555',
-        hidden: true, subcategories: ['gym', 'run', 'sleep']);
+  test('AxisDef round-trips hidden flag and subcategories with colours', () {
+    const a = AxisDef('health', 'Health', '', '#DD5555', hidden: true,
+        subcategories: [
+          SubcategoryDef('gym', '#55883B'),
+          SubcategoryDef('run'),
+        ]);
     final back = AxisDef.fromJson(a.toJson());
     expect(back.hidden, true);
-    expect(back.subcategories, ['gym', 'run', 'sleep']);
-    // Older configs without the keys default cleanly.
-    final legacy = AxisDef.fromJson(
-        {'key': 'mind', 'label': 'Mind', 'color': '#4C72B0'});
+    expect(back.subcategoryNames, ['gym', 'run']);
+    expect(back.subcategoryByName('gym')!.colorHex, '#55883B');
+    expect(back.subcategoryByName('run')!.colorHex, ''); // inherits axis colour
+    // Legacy: subcategories stored as plain strings still parse.
+    final legacy = AxisDef.fromJson({
+      'key': 'mind',
+      'label': 'Mind',
+      'color': '#4C72B0',
+      'subcategories': ['read', 'study'],
+    });
+    expect(legacy.subcategoryNames, ['read', 'study']);
     expect(legacy.hidden, false);
-    expect(legacy.subcategories, isEmpty);
+    // And a config with no subcategories key at all.
+    final none =
+        AxisDef.fromJson({'key': 'x', 'label': 'X', 'color': '#000000'});
+    expect(none.subcategories, isEmpty);
+  });
+
+  test('subcategoryDays finds the dominant subcategory per day', () {
+    final day = DateTime(2026, 6, 1, 9);
+    Event e(String id, String name, String sub) => Event(
+        id: id, axisKey: 'health', name: name, exp: 10, timestamp: day, subcategory: sub);
+    final eng = LocalEngine([
+      e('1', 'a', 'gym'),
+      e('2', 'b', 'gym'),
+      e('3', 'c', 'run'),
+      Event(id: '4', axisKey: 'health', name: 'd', exp: 10, timestamp: day), // untagged
+    ]);
+    final sd = eng.subcategoryDays('health');
+    final k = LocalEngine.dayKey(day);
+    expect(sd.counts[k], 3); // only tagged events count
+    expect(sd.dominant[k], 'gym');
   });
 
   test('hidden events are excluded from the octagon but counted elsewhere', () {

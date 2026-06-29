@@ -26,6 +26,18 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.18
+
+- **Subcategories now have their own editor and colours** — *Edit categories*
+  has a **Categories / Subcategories** toggle at the top. In Subcategories mode,
+  pick a category and rename, recolour, add, remove, or reorder its
+  subcategories, just like categories. A blank colour inherits the category's.
+- **Coloured subcategory dashboard** — on the Log screen, the subcategory
+  activity chart uses each subcategory's colour.
+- **"All subcategories" by default** — instead of an empty prompt, the
+  subcategory chart now defaults to **all subcategories**, colouring each day by
+  the subcategory you logged most that day. Pick a specific one to drill in.
+
 ## What's new in 0.17
 
 - **"Hide this entry from the chart"** — the Log screen tick now hides just

@@ -146,6 +146,11 @@ class HeatGrid extends StatefulWidget {
   final Color baseColor;
   final int firstDayOfWeek; // DateTime.monday..sunday
 
+  /// Optional per-day colour override (dayKey -> colour). When set, each day's
+  /// cell uses its mapped colour (e.g. the dominant subcategory's colour)
+  /// instead of [baseColor], and the gradient legend is hidden.
+  final Map<String, Color>? dayColors;
+
   const HeatGrid({
     super.key,
     required this.counts,
@@ -153,6 +158,7 @@ class HeatGrid extends StatefulWidget {
     required this.isTime,
     required this.baseColor,
     required this.firstDayOfWeek,
+    this.dayColors,
   });
 
   @override
@@ -188,17 +194,17 @@ class _HeatGridState extends State<HeatGrid> {
     super.dispose();
   }
 
-  Color _color(BuildContext context, int count, int secs, int maxSecs) {
+  Color _color(BuildContext context, int count, int secs, int maxSecs, Color base) {
     final empty = Theme.of(context).colorScheme.surfaceContainerHighest;
     if (widget.isTime) {
       if (secs <= 0 || maxSecs <= 0) return empty;
       final r = secs / maxSecs;
       final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
-      return widget.baseColor.withOpacity(o);
+      return base.withOpacity(o);
     }
     if (count <= 0) return empty;
     final o = count == 1 ? 0.32 : (count == 2 ? 0.52 : (count == 3 ? 0.74 : 1.0));
-    return widget.baseColor.withOpacity(o);
+    return base.withOpacity(o);
   }
 
   void _showDay(BuildContext context, DateTime date, int count, int secs) {
@@ -221,6 +227,9 @@ class _HeatGridState extends State<HeatGrid> {
     final k = LocalEngine.dayKey(date);
     final c = widget.counts[k] ?? 0;
     final s = widget.seconds[k] ?? 0;
+    final base = widget.dayColors != null
+        ? (widget.dayColors![k] ?? widget.baseColor)
+        : widget.baseColor;
     return GestureDetector(
       onTap: () => _showDay(context, date, c, s),
       child: Container(
@@ -228,7 +237,7 @@ class _HeatGridState extends State<HeatGrid> {
         height: _cell,
         margin: const EdgeInsets.all(_margin),
         decoration: BoxDecoration(
-          color: _color(context, c, s, maxSecs),
+          color: _color(context, c, s, maxSecs, base),
           borderRadius: BorderRadius.circular(3),
         ),
       ),
@@ -328,19 +337,21 @@ class _HeatGridState extends State<HeatGrid> {
         ),
         const SizedBox(height: 8),
         Row(children: [
-          Text('Less', style: labelStyle),
-          const SizedBox(width: 6),
-          ...[0.32, 0.52, 0.74, 1.0].map((o) => Container(
-                width: 13,
-                height: 13,
-                margin: const EdgeInsets.symmetric(horizontal: 2),
-                decoration: BoxDecoration(
-                  color: widget.baseColor.withOpacity(o),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              )),
-          const SizedBox(width: 6),
-          Text('More', style: labelStyle),
+          if (widget.dayColors == null) ...[
+            Text('Less', style: labelStyle),
+            const SizedBox(width: 6),
+            ...[0.32, 0.52, 0.74, 1.0].map((o) => Container(
+                  width: 13,
+                  height: 13,
+                  margin: const EdgeInsets.symmetric(horizontal: 2),
+                  decoration: BoxDecoration(
+                    color: widget.baseColor.withOpacity(o),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                )),
+            const SizedBox(width: 6),
+            Text('More', style: labelStyle),
+          ],
           const Spacer(),
           Text(
             widget.isTime
