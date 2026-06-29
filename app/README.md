@@ -26,6 +26,165 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.34
+
+- **Categories range is now 1–15** (was 3–10). With 1–2 categories the octagon
+  shows a note instead of a polygon; it draws normally from 3 up.
+- **Export saves to a folder** — *Export logs* now opens Android's **Save to…**
+  dialog so you can store `rpg_me_data.md` in a folder on the device (e.g.
+  Downloads), instead of opening the share sheet. The folder you pick is the
+  storage location Android grants; pick once and it remembers it next time.
+
+## What's new in 0.33
+
+- **App icon polish** — white background to match the in-app chart (light grey
+  grid, light-blue fill, coloured vertices).
+
+## What's new in 0.32
+
+- **New app icon** — the octagon chart itself, generated via
+  `flutter_launcher_icons`.
+- **Optional in-place updates** — the release workflow can now sign every build
+  with a stable key, so installing a new version updates over the old one and
+  keeps your data (no uninstall). It activates when you add the
+  `ANDROID_KEYSTORE_*` repository secrets; otherwise builds stay debug-signed.
+  See *Updatable (signed) releases* below.
+
+## Updatable (signed) releases
+
+By default the APK is debug-signed, so Android makes you uninstall (losing data)
+to install a newer one. To get **in-place updates that keep your data**, sign
+every release with one stable key:
+
+1. Create a keystore (once), answering the prompts:
+   ```bash
+   keytool -genkey -v -keystore rpgme-release.jks -keyalg RSA -keysize 2048 \
+     -validity 10000 -alias rpgme
+   ```
+2. Base64-encode it: `base64 -w0 rpgme-release.jks` (macOS: `base64 -i …`).
+3. In the GitHub repo → **Settings → Secrets and variables → Actions**, add:
+   - `ANDROID_KEYSTORE_BASE64` — the base64 string from step 2
+   - `ANDROID_KEYSTORE_PASSWORD` — the keystore password
+   - `ANDROID_KEY_PASSWORD` — the key password (often the same)
+   - `ANDROID_KEY_ALIAS` — `rpgme`
+4. Re-run a release. From then on, every APK is signed with that key.
+
+> The **first** signed build still differs from the old debug-signed app, so
+> that one switch needs a one-time uninstall (back up via *Export logs* first).
+> Every release after that updates in place. Keep the keystore safe — losing it
+> means future updates can't install over the signed app.
+
+## What's new in 0.31
+
+- The top **+** on the home screen now logs directly (same as the Log button).
+- Removed the **"me ·"** prefix before the events count.
+- In **Categories**: a category's **+** adds a subcategory **inline** right under
+  it (no popup) — rename it by tapping the name, just like categories
+  (subcategory rename pen is gone). The **Add category** button opens a popup to
+  type the name and pick a colour.
+
+## What's new in 0.30
+
+- **One unified Categories screen.** No more Categories/Subcategories tabs —
+  every category and its (indented) subcategories show on a single screen. Each
+  category has a **+** to add a subcategory to it. Drag the ☰ handle to reorder
+  anything: a subcategory can move within its category **or onto another
+  category**, and a category moves together with its subcategories.
+- The **Add category** switch still puts its button next to **Save** (off) or at
+  the bottom (on). The **Add subcategory** switch adds an optional bottom
+  *Add subcategory* button (pick a category) — subcategories never get a button
+  next to Save, since every category already has its own **+**.
+
+## What's new in 0.29
+
+- **Add-category / Add-subcategory buttons moved to where they belong.** They no
+  longer appear on the home screen. Their Settings switches now control the
+  **Edit categories** screen: off → a **+** sits next to **Save**; on → the
+  **Add** button shows at the bottom of that tab. The home **Log** button is
+  unchanged.
+- **App bar tidied** — the **RPG_me** title is gone; order is now **+ · Timers ·
+  Activity · Edit categories · Settings · ⋮**, and the ⋮ menu also lists *Edit
+  categories* and *Settings* explicitly.
+- **Sync merged into Settings** — there's a **Sync now** button in Settings →
+  API settings; Sync is no longer a separate top-bar item.
+
+## What's new in 0.28
+
+- **Top app bar redesign** — a **+** menu (Log activity · Add category · Add
+  subcategory), a dedicated **Edit categories** icon, and a **⚙ Settings** gear.
+  Sync moved into the ⋮ menu (its pending-count badge is gone), and the offline
+  banner is hidden.
+- **Configurable bottom buttons** — Settings → *Bottom buttons* toggles the
+  **Log / Add category / Add subcategory** quick buttons at the bottom of the
+  home screen. Only **Log** is on by default; all actions stay available from
+  the top **+** menu.
+- **Activity screen** — the separate "All activity" grid is gone; the Category
+  picker now starts on **All** (every category) and you drill in from there.
+- **Octagon** — the **Hours** toggle is now labelled **Time**.
+- **Day numbers** — Settings → *Activity* → *Show day numbers* prints the
+  day-of-month in each heatmap cell.
+
+## What's new in 0.27
+
+- **Percentage respects Avg / day** now (like the other metrics), instead of
+  ignoring it.
+- **"Now" jump** — when you've navigated the octagon window into the past, a
+  **Now** link appears under the ‹ › label; tapping it brings the window back to
+  the present (today / current week / month / year, or re-anchors a custom day
+  or range to include today).
+
+## What's new in 0.26
+
+- **Reworked octagon period picker + always-on navigation.** The dropdown is now
+  **Today · This week · This month · This year · All time · Custom: single day ·
+  Custom: range of days** (the rolling "last N days / year to date" options were
+  removed). The **‹ ›** arrows are always shown and step the window by its own
+  unit — day by day for *Today*, week by week for *This week*, then month, year,
+  or by the custom day/range you picked. (Disabled for *All time*.)
+
+## What's new in 0.25
+
+- **Optional Number & Percentage metrics** (off by default) — Settings →
+  *Extra metrics* has **Track number** and **Track percentage** switches. Each
+  one you enable adds a field on the Log screen and a metric to the octagon
+  toggle (**Frequency · Hours · Number · Percent**). Numbers are **summed** per
+  category; percentages are **averaged** (and ignore Avg/day). They can be mixed
+  freely on the dashboard.
+- **Today** is now an option in the octagon period dropdown.
+
+## What's new in 0.24
+
+- **Custom time window** — next to *Avg / day* there's now a **Custom** chip.
+  Tap it to pick **a single day** or **a range of days**; the octagon then shows
+  exactly that window. Under the chart, **‹ ›** arrows step the window by its own
+  length (previous/next day, or previous/next range), with a **Clear** link to
+  return to the preset periods.
+
+## What's new in 0.23
+
+- **Timers get subcategories** — the New/Edit timer dialogs now have a
+  Subcategory picker just like the Log screen (None by default, then the
+  subcategories, then **Create new…**). The chosen subcategory is saved with the
+  session when you stop the timer, and shows on the timer card.
+- **“All subcategories (inc. hidden)”** — the Activity screen's *By subcategory*
+  dropdown adds this option after *All subcategories*, so you can see the
+  dominant-by-day view including hidden subcategories.
+
+## What's new in 0.22
+
+- **Log screen dashboard: one chart, switched by the picker** — the Subcategory
+  dropdown now defaults to **None** (no more "All subcategories"). With None,
+  the dashboard shows the **category** activity; pick a subcategory and it
+  **replaces** that with the subcategory's activity (one chart at a time). Still
+  gated by the "View dashboard on log creation" setting.
+
+## What's new in 0.21
+
+- **Subcategory heatmap on the Activity screen** — the Activity screen now has a
+  third **“By subcategory”** calendar under *All activity* and *By category*. It
+  follows the selected category and defaults to **all subcategories**, colouring
+  each day by the one you logged most; pick a specific subcategory to drill in.
+
 ## What's new in 0.20
 
 - **Create a subcategory while logging** — the Subcategory dropdown is now
@@ -195,10 +354,11 @@ log, so you can use it immediately with no backend. When you later deploy the
 - **Activity heatmap** — a GitHub-squares calendar of the last ~26 weeks,
   toggleable between time-spent and frequency.
 
-## Editable axes (4–10)
+## Editable axes (1–15)
 
 Tap **🎛 Edit axes** to rename, recolour, add, remove, or **reorder** the
-octagon's axes — anywhere from 4 to 10 of them. Drag the ☰ handle to change
+octagon's axes — anywhere from 1 to 15 of them (it draws as a polygon at 3+).
+Drag the ☰ handle to change
 their order, which is the order they appear around the octagon. The config is
 stored on-device (defaults to the classic 8 on first run) and the octagon, log
 picker, and timer categories all follow it. When you sync, the app pushes your
@@ -259,8 +419,9 @@ git checkout -- pubspec.yaml lib/main.dart
 sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' \
   android/app/build.gradle.kts 2>/dev/null || true
 
-# 3. Fetch packages and build
+# 3. Fetch packages, generate the launcher icon, and build
 flutter pub get
+dart run flutter_launcher_icons   # writes the octagon launcher icon
 flutter test                 # runs the model tests
 flutter build apk --release  # -> build/app/outputs/flutter-apk/app-release.apk
 ```

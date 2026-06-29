@@ -130,10 +130,13 @@ void main() {
     expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 600);
     // The default (heatmap/history) still includes everything.
     expect(eng.countByAxis()['health'], 3);
-    // The "all subcategories" breakdown drops the hidden one.
+    // The "all subcategories" breakdown drops the hidden one...
     final sd = eng.subcategoryDays('health');
     expect(sd.counts[LocalEngine.dayKey(day)], 1); // only 'gym'
     expect(sd.dominant[LocalEngine.dayKey(day)], 'gym');
+    // ...unless includeHidden is set (the "inc. hidden" view).
+    final sdAll = eng.subcategoryDays('health', includeHidden: true);
+    expect(sdAll.counts[LocalEngine.dayKey(day)], 2); // gym + junk
   });
 
   test('subcategoryDays finds the dominant subcategory per day', () {
@@ -150,6 +153,42 @@ void main() {
     final k = LocalEngine.dayKey(day);
     expect(sd.counts[k], 3); // only tagged events count
     expect(sd.dominant[k], 'gym');
+  });
+
+  test('numberByAxis sums and percentAvgByAxis averages per axis', () {
+    Event e({required String axis, double? number, double? percentage}) => Event(
+        id: Event.newId(),
+        axisKey: axis,
+        name: 'x',
+        exp: 10,
+        timestamp: DateTime.now(),
+        number: number,
+        percentage: percentage);
+    final eng = LocalEngine([
+      e(axis: 'health', number: 10, percentage: 50),
+      e(axis: 'health', number: 5, percentage: 100),
+      e(axis: 'health'), // neither tracked — ignored by both
+      e(axis: 'mind', number: 3),
+    ]);
+    expect(eng.numberByAxis()['health'], 15);
+    expect(eng.numberByAxis()['mind'], 3);
+    expect(eng.percentAvgByAxis()['health'], 75); // (50 + 100) / 2
+    expect(eng.percentAvgByAxis().containsKey('mind'), false); // no percentages
+  });
+
+  test('countByAxis/timeTotals honor a since..until window', () {
+    final eng = LocalEngine([
+      ev('health', 'a', seconds: 600, at: DateTime(2026, 6, 1, 9)),
+      ev('health', 'b', seconds: 600, at: DateTime(2026, 6, 3, 9)),
+      ev('health', 'c', seconds: 600, at: DateTime(2026, 6, 5, 9)),
+    ]);
+    // Window covering just Jun 3 (until = exclusive midnight Jun 4).
+    final since = DateTime(2026, 6, 3);
+    final until = DateTime(2026, 6, 4);
+    expect(eng.countByAxis(since: since, until: until)['health'], 1);
+    expect(eng.timeTotals(since: since, until: until).byAxis['health'], 600);
+    // Open-ended (no until) from Jun 3 sees Jun 3 and Jun 5.
+    expect(eng.countByAxis(since: since)['health'], 2);
   });
 
   test('hidden events are excluded from the octagon but counted elsewhere', () {

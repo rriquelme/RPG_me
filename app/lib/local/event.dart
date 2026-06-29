@@ -13,6 +13,12 @@ class Event {
   /// When true, this entry is excluded from the octagon (axis graph) — it is
   /// still logged and counted everywhere else.
   final bool hidden;
+
+  /// Optional free number for this log (null = not tracked).
+  final double? number;
+
+  /// Optional 0–100 percentage for this log (null = not tracked).
+  final double? percentage;
   final int exp;
   final String note;
   final DateTime timestamp;
@@ -27,6 +33,8 @@ class Event {
     required this.timestamp,
     this.subcategory = '',
     this.hidden = false,
+    this.number,
+    this.percentage,
     this.note = '',
     this.seconds = 0,
     this.synced = false,
@@ -39,6 +47,8 @@ class Event {
         'name': name,
         if (subcategory.isNotEmpty) 'subcategory': subcategory,
         if (hidden) 'hidden': true,
+        if (number != null) 'number': number,
+        if (percentage != null) 'percentage': percentage,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),
@@ -52,6 +62,8 @@ class Event {
         name: j['name'] as String,
         subcategory: (j['subcategory'] ?? '') as String,
         hidden: (j['hidden'] ?? false) as bool,
+        number: (j['number'] as num?)?.toDouble(),
+        percentage: (j['percentage'] as num?)?.toDouble(),
         exp: (j['exp'] ?? 0) as int,
         note: (j['note'] ?? '') as String,
         timestamp: DateTime.parse(j['timestamp'] as String),
@@ -66,6 +78,8 @@ class Event {
         'name': name,
         if (subcategory.isNotEmpty) 'subcategory': subcategory,
         if (hidden) 'hidden': true,
+        if (number != null) 'number': number,
+        if (percentage != null) 'percentage': percentage,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),

@@ -4,10 +4,8 @@ import '../local/event.dart';
 import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
+import '../widgets/subcategory_dialogs.dart';
 import 'heatmap_screen.dart' show HeatGrid;
-
-/// Sentinel value for the "Create new…" item in the subcategory dropdown.
-const String _kCreateSub = '__create_subcategory__';
 
 /// Log an activity: pick a category, name it, optionally record how long you
 /// spent and on which day/time. Pass [existing] to edit a logged entry instead.
@@ -32,6 +30,8 @@ class LogScreen extends StatefulWidget {
 class _LogScreenState extends State<LogScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _numberController = TextEditingController();
+  final _percentController = TextEditingController();
   List<AxisDef> _axes = [];
   String? _selectedAxis;
   String? _selectedSub; // optional subcategory within the selected category
@@ -42,14 +42,13 @@ class _LogScreenState extends State<LogScreen> {
   bool _submitting = false;
   String? _error;
 
-  // Activity heatmaps shown at the top when the setting is on: one for the
-  // whole category, and one for the subcategories — either a single picked
-  // subcategory, or (by default) all of them coloured by the day's dominant.
+  // Activity heatmap shown at the top when the setting is on. With no
+  // subcategory picked (None) it shows the whole category; pick a subcategory
+  // and it shows just that subcategory instead.
   Map<String, int> _catCounts = {};
   Map<String, int> _catSeconds = {};
   Map<String, int> _subCounts = {};
   Map<String, int> _subSeconds = {};
-  Map<String, Color>? _subDayColors; // set for the "all subcategories" view
 
   @override
   void initState() {
@@ -61,6 +60,8 @@ class _LogScreenState extends State<LogScreen> {
       _minutes = (ex.seconds % 3600) ~/ 60;
       _when = ex.timestamp;
       _hidden = ex.hidden;
+      if (ex.number != null) _numberController.text = _fmtNum(ex.number!);
+      if (ex.percentage != null) _percentController.text = _fmtNum(ex.percentage!);
     }
     final a = widget.repo.axesConfig;
     _axes = a;
@@ -88,66 +89,12 @@ class _LogScreenState extends State<LogScreen> {
     return hex.isEmpty ? fallback : colorFromHex(hex);
   }
 
-  /// Create a subcategory in place (name + optional colour), persist it on the
-  /// category, then auto-select it. Used by the dropdown's "Create new…" item.
+  /// Create a subcategory in place, persist it on the category, then
+  /// auto-select it. Used by the dropdown's "Create new…" item.
   Future<void> _createSubcategory(AxisDef axis) async {
-    final nameController = TextEditingController();
-    var colorHex = ''; // empty = inherit the category colour
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: Text('New subcategory · ${axis.label}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'Name'),
-                onSubmitted: (_) => Navigator.pop(context, true),
-              ),
-              const SizedBox(height: 16),
-              const Text('Colour (optional)'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _ColorDot(
-                    color: colorFromHex(axis.colorHex),
-                    selected: colorHex.isEmpty,
-                    icon: Icons.format_color_reset,
-                    onTap: () => setLocal(() => colorHex = ''),
-                  ),
-                  ...kAxisPalette.map((hex) => _ColorDot(
-                        color: colorFromHex(hex),
-                        selected: colorHex == hex,
-                        onTap: () => setLocal(() => colorHex = hex),
-                      )),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Create')),
-          ],
-        ),
-      ),
-    );
-    if (created != true) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-    if (axis.subcategoryByName(name) == null) {
-      await widget.repo.addSubcategory(axis.key, SubcategoryDef(name, colorHex));
-    }
-    if (!mounted) return;
+    final name = await showCreateSubcategoryDialog(
+        context: context, repo: widget.repo, axis: axis);
+    if (name == null || !mounted) return;
     setState(() {
       _axes = widget.repo.axesConfig; // pick up the new subcategory
       _selectedSub = name; // auto-select it
@@ -162,44 +109,27 @@ class _LogScreenState extends State<LogScreen> {
     return null;
   }
 
-  /// Refresh both activity heatmaps for the current selection. The category
-  /// chart always shows the whole category. The subcategory chart shows the
-  /// picked subcategory (in its colour); with none picked it shows all
-  /// subcategories, each day coloured by that day's dominant subcategory. The
-  /// "last click" wins.
+  /// Refresh the activity heatmap for the current selection. With no
+  /// subcategory picked (None) we show the whole category; with one picked we
+  /// show just that subcategory. The "last click" wins.
   Future<void> _loadActivity() async {
     final key = _selectedAxis;
     if (key == null) return;
-    final axis = _axisFor(key);
+    final sub = _selectedSub;
     final cat = await widget.repo.dailyCounts(axisKey: key);
     final catS = await widget.repo.dailySeconds(axisKey: key);
-
-    var subC = <String, int>{};
-    var subS = <String, int>{};
-    Map<String, Color>? dayColors;
-    final sub = _selectedSub;
-    if (axis != null && axis.subcategories.isNotEmpty) {
-      if (sub == null) {
-        final days = await widget.repo.subcategoryDays(key);
-        subC = days.counts;
-        subS = days.seconds;
-        final fallback = colorFromHex(axis.colorHex);
-        dayColors = {
-          for (final e in days.dominant.entries)
-            e.key: _subColor(axis, e.value, fallback),
-        };
-      } else {
-        subC = await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
-        subS = await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
-      }
-    }
+    final subC = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
+    final subS = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
     if (mounted) {
       setState(() {
         _catCounts = cat;
         _catSeconds = catS;
         _subCounts = subC;
         _subSeconds = subS;
-        _subDayColors = dayColors;
       });
     }
   }
@@ -241,6 +171,16 @@ class _LogScreenState extends State<LogScreen> {
       }
       final ex = widget.existing;
       final sub = _selectedSub ?? '';
+      final settings = widget.repo.settings;
+      final number = settings.trackNumber
+          ? double.tryParse(_numberController.text.trim().replaceAll(',', '.'))
+          : null;
+      double? percentage;
+      if (settings.trackPercentage) {
+        final p =
+            double.tryParse(_percentController.text.trim().replaceAll(',', '.'));
+        if (p != null) percentage = p.clamp(0, 100).toDouble();
+      }
       if (ex != null) {
         await widget.repo.updateEvent(
           ex.id,
@@ -251,6 +191,8 @@ class _LogScreenState extends State<LogScreen> {
           note: ex.note,
           subcategory: sub,
           hidden: _hidden,
+          number: number,
+          percentage: percentage,
         );
       } else {
         await widget.repo.log(
@@ -260,6 +202,8 @@ class _LogScreenState extends State<LogScreen> {
           at: _when,
           subcategory: sub,
           hidden: _hidden,
+          number: number,
+          percentage: percentage,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -271,9 +215,15 @@ class _LogScreenState extends State<LogScreen> {
     }
   }
 
+  /// Format a stored double without a trailing ".0".
+  String _fmtNum(double n) =>
+      n % 1 == 0 ? n.toInt().toString() : n.toString();
+
   @override
   void dispose() {
     _nameController.dispose();
+    _numberController.dispose();
+    _percentController.dispose();
     super.dispose();
   }
 
@@ -294,36 +244,28 @@ class _LogScreenState extends State<LogScreen> {
           child: ListView(
             children: [
               if (showDash && axis != null) ...[
-                // Dashboard 1: the whole category's activity.
-                _ActivityCard(
-                  title: 'Activity · ${axis.label}',
-                  counts: _catCounts,
-                  seconds: _catSeconds,
-                  baseColor: colorFromHex(axis.colorHex),
-                  firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-                  selectionKey: 'cat/$_selectedAxis',
-                ),
-                // Dashboard 2 (the "3rd"): only when the category has
-                // subcategories. With none picked it shows ALL subcategories,
-                // each day coloured by that day's dominant subcategory; pick one
-                // to see just that subcategory's activity in its own colour.
-                if (axis.subcategories.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                // A single activity dashboard: the whole category when no
+                // subcategory is picked (None), or just the picked subcategory
+                // (replacing the category one) when one is chosen.
+                if (_selectedSub == null)
                   _ActivityCard(
-                    title: _selectedSub == null
-                        ? 'Activity · ${axis.label} › all subcategories'
-                        : 'Activity · ${axis.label} › $_selectedSub',
+                    title: 'Activity · ${axis.label}',
+                    counts: _catCounts,
+                    seconds: _catSeconds,
+                    baseColor: colorFromHex(axis.colorHex),
+                    firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+                    selectionKey: 'cat/$_selectedAxis',
+                  )
+                else
+                  _ActivityCard(
+                    title: 'Activity · ${axis.label} › $_selectedSub',
                     counts: _subCounts,
                     seconds: _subSeconds,
-                    baseColor: _selectedSub == null
-                        ? colorFromHex(axis.colorHex)
-                        : _subColor(
-                            axis, _selectedSub!, colorFromHex(axis.colorHex)),
+                    baseColor: _subColor(
+                        axis, _selectedSub!, colorFromHex(axis.colorHex)),
                     firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
                     selectionKey: 'sub/$_selectedAxis/$_selectedSub',
-                    dayColors: _subDayColors,
                   ),
-                ],
                 const SizedBox(height: 20),
               ],
               DropdownButtonFormField<String>(
@@ -376,11 +318,9 @@ class _LogScreenState extends State<LogScreen> {
                   value: _selectedSub,
                   decoration: const InputDecoration(labelText: 'Subcategory'),
                   items: [
-                    DropdownMenuItem<String?>(
+                    const DropdownMenuItem<String?>(
                       value: null,
-                      child: Text(axis.subcategories.isEmpty
-                          ? 'None'
-                          : 'All subcategories'),
+                      child: Text('None'),
                     ),
                     ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
                           value: s.name,
@@ -401,7 +341,7 @@ class _LogScreenState extends State<LogScreen> {
                           ]),
                         )),
                     const DropdownMenuItem<String?>(
-                      value: _kCreateSub,
+                      value: kCreateSubcategory,
                       child: Row(children: [
                         Icon(Icons.add, size: 16),
                         SizedBox(width: 8),
@@ -410,7 +350,7 @@ class _LogScreenState extends State<LogScreen> {
                     ),
                   ],
                   onChanged: (v) {
-                    if (v == _kCreateSub) {
+                    if (v == kCreateSubcategory) {
                       _createSubcategory(axis);
                       return;
                     }
@@ -427,6 +367,31 @@ class _LogScreenState extends State<LogScreen> {
                   hintText: 'gym, read, meditate…',
                 ),
               ),
+              if (widget.repo.settings.trackNumber) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _numberController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Number (optional)',
+                    hintText: 'e.g. 12',
+                  ),
+                ),
+              ],
+              if (widget.repo.settings.trackPercentage) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _percentController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Percentage (optional)',
+                    hintText: '0–100',
+                    suffixText: '%',
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text('Time spent', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),
@@ -519,37 +484,6 @@ class _ActivityCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A selectable colour swatch used by the "create subcategory" dialog.
-class _ColorDot extends StatelessWidget {
-  final Color color;
-  final bool selected;
-  final IconData? icon;
-  final VoidCallback onTap;
-  const _ColorDot({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: CircleAvatar(
-        backgroundColor: color,
-        radius: 18,
-        child: selected
-            ? const Icon(Icons.check, size: 18, color: Colors.white)
-            : (icon != null
-                ? Icon(icon, size: 18, color: Colors.white)
-                : null),
       ),
     );
   }

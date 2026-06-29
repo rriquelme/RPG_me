@@ -6,20 +6,27 @@ import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
 
-enum _EditMode { categories, subcategories }
+/// One flat row in the merged list: a category, or a subcategory belonging to
+/// the most recent category above it. Used for reordering.
+class _FlatItem {
+  final AxisDef? category;
+  final SubcategoryDef? sub;
+  _FlatItem.cat(AxisDef this.category) : sub = null;
+  _FlatItem.subcat(SubcategoryDef this.sub) : category = null;
+  bool get isCategory => category != null;
+}
 
-/// Edit the octagon's axes and their subcategories. A toggle at the top switches
-/// between editing the categories (rename, recolour, hide, add/remove, reorder)
-/// and editing one category's subcategories (rename, recolour, add/remove,
-/// reorder). Saved together.
+/// A single screen to administrate every category and its subcategories.
+/// Subcategories are indented under their category; each category has a "+" to
+/// add a subcategory to it. Anything can be dragged to reorder — a subcategory
+/// can move within its category or to another one; a category moves with its
+/// subcategories.
 class AxesConfigScreen extends StatefulWidget {
   final Repository repo;
 
-  /// Open straight into the Subcategories tab.
+  /// Open and immediately prompt to add a subcategory (from the top "+" menu).
   final bool startInSubcategories;
-
-  /// When [startInSubcategories], focus this category's subcategories.
-  final String? focusAxisKey;
+  final String? focusAxisKey; // unused; kept for call-site compatibility
 
   const AxesConfigScreen({
     super.key,
@@ -36,22 +43,108 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   late List<AxisDef> _axes;
   final _rand = Random();
   bool _saving = false;
+  bool _dirty = false;
   String? _error;
-
-  _EditMode _mode = _EditMode.categories;
-  int _subAxisIndex = 0; // which category's subcategories we're editing
-  bool _dirty = false; // unsaved edits → prompt on back
 
   @override
   void initState() {
     super.initState();
-    _axes = List.of(widget.repo.axesConfig);
-    if (widget.startInSubcategories) _mode = _EditMode.subcategories;
-    final fk = widget.focusAxisKey;
-    if (fk != null) {
-      final idx = _axes.indexWhere((a) => a.key == fk);
-      if (idx >= 0) _subAxisIndex = idx;
+    // Ensure every subcategory has a stable id (for inline-editable names).
+    _axes = [
+      for (final a in widget.repo.axesConfig)
+        a.copyWith(subcategories: [
+          for (final s in a.subcategories)
+            s.id.isEmpty ? s.copyWith(id: _genSubId()) : s
+        ])
+    ];
+    if (widget.startInSubcategories) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _addSubBottom());
     }
+  }
+
+  String _genSubId() =>
+      's${_rand.nextInt(1 << 32).toRadixString(16)}${_rand.nextInt(1 << 32).toRadixString(16)}';
+
+  // --- flat row model (categories + indented subcategories) ---------------
+  /// Each entry is [categoryIndex, subIndex] with subIndex < 0 for a category.
+  List<List<int>> _rows() {
+    final rows = <List<int>>[];
+    for (var c = 0; c < _axes.length; c++) {
+      rows.add([c, -1]);
+      for (var s = 0; s < _axes[c].subcategories.length; s++) {
+        rows.add([c, s]);
+      }
+    }
+    return rows;
+  }
+
+  int _blockLen(List<_FlatItem> flat, int start) {
+    var len = 1;
+    var j = start + 1;
+    while (j < flat.length && !flat[j].isCategory) {
+      len++;
+      j++;
+    }
+    return len;
+  }
+
+  void _onReorder(int oldIndex, int newIndex) {
+    final rows = _rows();
+    final flat = <_FlatItem>[
+      for (final r in rows)
+        r[1] < 0
+            ? _FlatItem.cat(_axes[r[0]])
+            : _FlatItem.subcat(_axes[r[0]].subcategories[r[1]])
+    ];
+    final l = flat[oldIndex].isCategory ? _blockLen(flat, oldIndex) : 1;
+    final block = flat.sublist(oldIndex, oldIndex + l);
+    flat.removeRange(oldIndex, oldIndex + l);
+    int insertAt;
+    if (newIndex <= oldIndex) {
+      insertAt = newIndex;
+    } else if (newIndex >= oldIndex + l) {
+      insertAt = newIndex - l;
+    } else {
+      return; // dropped inside its own block — no-op
+    }
+    flat.insertAll(insertAt.clamp(0, flat.length), block);
+    _rebuildFromFlat(flat);
+  }
+
+  void _rebuildFromFlat(List<_FlatItem> flat) {
+    final newAxes = <AxisDef>[];
+    final orphans = <SubcategoryDef>[];
+    AxisDef? cur;
+    var curSubs = <SubcategoryDef>[];
+    for (final f in flat) {
+      if (f.isCategory) {
+        if (cur != null) newAxes.add(cur.copyWith(subcategories: curSubs));
+        cur = f.category;
+        curSubs = <SubcategoryDef>[];
+      } else if (cur == null) {
+        orphans.add(f.sub!);
+      } else {
+        curSubs.add(f.sub!);
+      }
+    }
+    if (cur != null) newAxes.add(cur.copyWith(subcategories: curSubs));
+    if (orphans.isNotEmpty && newAxes.isNotEmpty) {
+      newAxes[0] = newAxes[0]
+          .copyWith(subcategories: [...orphans, ...newAxes[0].subcategories]);
+    }
+    // Reject moves that would duplicate a subcategory name within a category.
+    for (final a in newAxes) {
+      final names = a.subcategoryNames;
+      if (names.toSet().length != names.length) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('“${a.label}” already has a subcategory by that name.')));
+        return;
+      }
+    }
+    setState(() {
+      _axes = newAxes;
+      _dirty = true;
+    });
   }
 
   // --- category ops -------------------------------------------------------
@@ -63,111 +156,158 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     return key;
   }
 
-  void _add() {
+  /// Add a category via a popup: name + colour.
+  Future<void> _addCategory() async {
     if (_axes.length >= kMaxAxes) return;
-    final color = kAxisPalette[_axes.length % kAxisPalette.length];
+    final controller = TextEditingController(text: 'New category');
+    var colorHex = kAxisPalette[_axes.length % kAxisPalette.length];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('New category'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Name'),
+                onSubmitted: (_) => Navigator.pop(context, true),
+              ),
+              const SizedBox(height: 16),
+              const Text('Colour'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final hex in kAxisPalette)
+                    InkWell(
+                      onTap: () => setLocal(() => colorHex = hex),
+                      customBorder: const CircleBorder(),
+                      child: CircleAvatar(
+                        backgroundColor: colorFromHex(hex),
+                        radius: 18,
+                        child: colorHex == hex
+                            ? const Icon(Icons.check, size: 18, color: Colors.white)
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Create')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final name = controller.text.trim();
+    if (name.isEmpty) return;
     setState(() {
-      _axes.add(AxisDef(_newKey(), 'New category', '', color));
+      _axes.add(AxisDef(_newKey(), name, '', colorHex));
       _dirty = true;
     });
   }
 
-  void _remove(int i) {
+  void _remove(int c) {
     if (_axes.length <= kMinAxes) return;
     setState(() {
-      _axes.removeAt(i);
-      if (_subAxisIndex >= _axes.length) _subAxisIndex = _axes.length - 1;
+      _axes.removeAt(c);
       _dirty = true;
     });
   }
 
-  void _rename(int i, String label) {
-    _axes[i] = _axes[i].copyWith(label: label);
+  void _rename(int c, String label) {
+    _axes[c] = _axes[c].copyWith(label: label);
     _dirty = true;
   }
 
-  void _toggleHidden(int i) {
+  void _toggleHidden(int c) {
     setState(() {
-      _axes[i] = _axes[i].copyWith(hidden: !_axes[i].hidden);
-      _dirty = true;
-    });
-  }
-
-  void _reorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (newIndex > oldIndex) newIndex -= 1;
-      final moved = _axes.removeAt(oldIndex);
-      _axes.insert(newIndex, moved);
+      _axes[c] = _axes[c].copyWith(hidden: !_axes[c].hidden);
       _dirty = true;
     });
   }
 
   // --- subcategory ops ----------------------------------------------------
-  List<SubcategoryDef> get _subs => _axes[_subAxisIndex].subcategories;
-
-  void _setSubs(List<SubcategoryDef> subs) {
+  void _setSubs(int c, List<SubcategoryDef> subs) {
     setState(() {
-      _axes[_subAxisIndex] =
-          _axes[_subAxisIndex].copyWith(subcategories: subs);
+      _axes[c] = _axes[c].copyWith(subcategories: subs);
       _dirty = true;
     });
   }
 
-  Future<void> _addSub() async {
-    final name = await _promptName(title: 'Add subcategory');
-    if (name == null) return;
-    if (_subs.any((s) => s.name == name)) return;
-    final color = kAxisPalette[_subs.length % kAxisPalette.length];
-    _setSubs([..._subs, SubcategoryDef(name, color)]);
+  /// Add a subcategory directly under [c] (no dialog) — it gets a default name
+  /// to rename inline.
+  void _addSubTo(int c) {
+    final existing = _axes[c].subcategories.map((s) => s.name).toSet();
+    var name = 'New subcategory';
+    var n = 2;
+    while (existing.contains(name)) {
+      name = 'New subcategory $n';
+      n++;
+    }
+    final color = kAxisPalette[_axes[c].subcategories.length % kAxisPalette.length];
+    _setSubs(c, [
+      SubcategoryDef(name, color, false, _genSubId()),
+      ..._axes[c].subcategories,
+    ]);
   }
 
-  Future<void> _renameSub(int j) async {
-    final name = await _promptName(title: 'Rename subcategory', initial: _subs[j].name);
-    if (name == null) return;
-    if (name != _subs[j].name && _subs.any((s) => s.name == name)) return;
-    final next = List.of(_subs)..[j] = _subs[j].copyWith(name: name);
-    _setSubs(next);
-  }
-
-  void _removeSub(int j) => _setSubs(List.of(_subs)..removeAt(j));
-
-  void _toggleSubHidden(int j) =>
-      _setSubs(List.of(_subs)..[j] = _subs[j].copyWith(hidden: !_subs[j].hidden));
-
-  void _reorderSub(int oldIndex, int newIndex) {
-    if (newIndex > oldIndex) newIndex -= 1;
-    final next = List.of(_subs);
-    final moved = next.removeAt(oldIndex);
-    next.insert(newIndex, moved);
-    _setSubs(next);
-  }
-
-  Future<String?> _promptName({required String title, String initial = ''}) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
+  /// Bottom "Add subcategory" button: pick a category, then add to it.
+  Future<void> _addSubBottom() async {
+    if (_axes.isEmpty) return;
+    final c = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Name'),
-          onSubmitted: (v) => Navigator.pop(context, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, controller.text.trim()),
-            child: const Text('OK'),
-          ),
+      builder: (_) => SimpleDialog(
+        title: const Text('Add subcategory to…'),
+        children: [
+          for (var i = 0; i < _axes.length; i++)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, i),
+              child: Row(children: [
+                Container(
+                    width: 12, height: 12, color: colorFromHex(_axes[i].colorHex)),
+                const SizedBox(width: 8),
+                Text(_axes[i].label),
+              ]),
+            ),
         ],
       ),
-    ).then((v) => (v == null || v.isEmpty) ? null : v);
+    );
+    if (c != null) _addSubTo(c);
+  }
+
+  /// Inline rename (tap the name) — mirrors category renaming. No setState so
+  /// the field keeps focus while typing; the stable id keeps its reorder key.
+  void _renameSubInline(int c, int s, String name) {
+    final subs = List.of(_axes[c].subcategories)
+      ..[s] = _axes[c].subcategories[s].copyWith(name: name);
+    _axes[c] = _axes[c].copyWith(subcategories: subs);
+    _dirty = true;
+  }
+
+  void _removeSub(int c, int s) =>
+      _setSubs(c, List.of(_axes[c].subcategories)..removeAt(s));
+
+  void _toggleSubHidden(int c, int s) {
+    final cur = _axes[c].subcategories[s];
+    final subs = List.of(_axes[c].subcategories)
+      ..[s] = cur.copyWith(hidden: !cur.hidden);
+    _setSubs(c, subs);
   }
 
   // --- colours ------------------------------------------------------------
-  /// Returns a hex string, '' for "default" (no custom colour), or null if the
-  /// dialog was dismissed.
   Future<String?> _chooseColor() async {
     const none = '__none__';
     final chosen = await showDialog<String>(
@@ -203,20 +343,22 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     return chosen == none ? '' : chosen;
   }
 
-  Future<void> _pickColor(int i) async {
+  Future<void> _pickColor(int c) async {
     final hex = await _chooseColor();
     if (hex != null) {
       setState(() {
-        _axes[i] = _axes[i].copyWith(colorHex: hex);
+        _axes[c] = _axes[c].copyWith(colorHex: hex);
         _dirty = true;
       });
     }
   }
 
-  Future<void> _pickSubColor(int j) async {
+  Future<void> _pickSubColor(int c, int s) async {
     final hex = await _chooseColor();
     if (hex != null) {
-      _setSubs(List.of(_subs)..[j] = _subs[j].copyWith(colorHex: hex));
+      final subs = List.of(_axes[c].subcategories)
+        ..[s] = _axes[c].subcategories[s].copyWith(colorHex: hex);
+      _setSubs(c, subs);
     }
   }
 
@@ -238,7 +380,6 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     }
   }
 
-  /// On back with unsaved edits, offer Save / Discard / Cancel.
   Future<void> _confirmExit() async {
     final choice = await showDialog<String>(
       context: context,
@@ -246,15 +387,9 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
         title: const Text('Save changes?'),
         content: const Text('You have unsaved changes to your categories.'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, 'cancel'),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(context, 'discard'),
-              child: const Text('Discard')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, 'save'),
-              child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Discard')),
+          FilledButton(onPressed: () => Navigator.pop(context, 'save'), child: const Text('Save')),
         ],
       ),
     );
@@ -265,267 +400,196 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     }
   }
 
+  // --- build --------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final subMode = _mode == _EditMode.subcategories;
+    final s = widget.repo.settings;
+    final rows = _rows();
     return PopScope(
       canPop: !_dirty,
       onPopInvoked: (didPop) {
         if (!didPop) _confirmExit();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit categories'),
-        actions: [
-          TextButton(onPressed: _saving ? null : _save, child: const Text('Save')),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: SegmentedButton<_EditMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: _EditMode.categories, label: Text('Categories')),
-                ButtonSegment(value: _EditMode.subcategories, label: Text('Subcategories')),
-              ],
-              selected: {_mode},
-              onSelectionChanged: (s) => setState(() => _mode = s.first),
-            ),
-          ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Text(_error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ),
-          Expanded(child: subMode ? _buildSubcategories() : _buildCategories()),
-        ],
-      ),
-      floatingActionButton: subMode
-          ? FloatingActionButton.extended(
-              onPressed: _addSub,
-              icon: const Icon(Icons.add),
-              label: const Text('Add subcategory'),
-            )
-          : FloatingActionButton.extended(
-              onPressed: _axes.length < kMaxAxes ? _add : null,
-              icon: const Icon(Icons.add),
-              label: Text(_axes.length < kMaxAxes ? 'Add category' : 'Max $kMaxAxes'),
-            ),
-      ),
-    );
-  }
-
-  // --- categories list ----------------------------------------------------
-  Widget _buildCategories() {
-    final canRemove = _axes.length > kMinAxes;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Text(
-            '${_axes.length} categories (allowed: $kMinAxes–$kMaxAxes). '
-            'Tap a colour to change it; drag ☰ to reorder; tap 👁 to hide from '
-            'the chart (still loggable); tap the subcategories line to edit them.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ),
-        Expanded(
-          child: ReorderableListView.builder(
-            buildDefaultDragHandles: false,
-            onReorder: _reorder,
-            itemCount: _axes.length,
-            itemBuilder: (context, i) {
-              final axis = _axes[i];
-              final subs = axis.subcategories;
-              return ListTile(
-                key: ValueKey(axis.key),
-                leading: GestureDetector(
-                  onTap: () => _pickColor(i),
-                  child: CircleAvatar(
-                      backgroundColor: colorFromHex(axis.colorHex), radius: 14),
-                ),
-                title: TextFormField(
-                  initialValue: axis.label,
-                  style: axis.hidden
-                      ? TextStyle(color: Theme.of(context).disabledColor)
-                      : null,
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    border: InputBorder.none,
-                  ),
-                  onChanged: (v) => _rename(i, v),
-                ),
-                subtitle: InkWell(
-                  onTap: () => setState(() {
-                    _mode = _EditMode.subcategories;
-                    _subAxisIndex = i;
-                  }),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.account_tree_outlined, size: 14),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            subs.isEmpty
-                                ? 'No subcategories — tap to add'
-                                : 'Subcategories: ${axis.subcategoryNames.join(', ')}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const Icon(Icons.chevron_right, size: 16),
-                      ],
-                    ),
-                  ),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: Icon(axis.hidden
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined),
-                      tooltip: axis.hidden
-                          ? 'Hidden from chart — tap to show'
-                          : 'Shown on chart — tap to hide',
-                      onPressed: () => _toggleHidden(i),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes categories',
-                      onPressed: canRemove ? () => _remove(i) : null,
-                    ),
-                    ReorderableDragStartListener(
-                      index: i,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
-                        child: Icon(Icons.drag_handle),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --- subcategories list -------------------------------------------------
-  Widget _buildSubcategories() {
-    final axis = _axes[_subAxisIndex];
-    final subs = axis.subcategories;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: Row(
-            children: [
-              const Text('Category'),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButton<int>(
-                  isExpanded: true,
-                  value: _subAxisIndex,
-                  items: [
-                    for (var i = 0; i < _axes.length; i++)
-                      DropdownMenuItem(
-                        value: i,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Container(
-                              width: 12, height: 12, color: colorFromHex(_axes[i].colorHex)),
-                          const SizedBox(width: 8),
-                          Text(_axes[i].label),
-                        ]),
-                      ),
-                  ],
-                  onChanged: (v) => v == null ? null : setState(() => _subAxisIndex = v),
-                ),
+        appBar: AppBar(
+          title: const Text('Categories'),
+          actions: [
+            // Only categories get a "+" near Save (subcategories use the per-
+            // category + in each row).
+            if (!s.showAddCategoryButton)
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'Add category',
+                onPressed: _axes.length < kMaxAxes ? _addCategory : null,
               ),
-            ],
-          ),
+            TextButton(onPressed: _saving ? null : _save, child: const Text('Save')),
+          ],
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: Text(
-            subs.isEmpty
-                ? 'No subcategories yet — they are optional. Tap “Add subcategory”.'
-                : 'Tap a colour to change it; drag ☰ to reorder. A blank colour '
-                    'uses the category colour.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+        body: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                'Tap a colour to change it; drag ☰ to reorder. Use the + on a '
+                'category to add a subcategory; drag a subcategory onto another '
+                'category to move it. 👁 hides from the charts.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: Text(_error!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              ),
+            Expanded(
+              child: ReorderableListView.builder(
+                buildDefaultDragHandles: false,
+                onReorder: _onReorder,
+                itemCount: rows.length,
+                itemBuilder: (context, i) {
+                  final c = rows[i][0], sub = rows[i][1];
+                  return sub < 0
+                      ? _categoryTile(i, c)
+                      : _subcategoryTile(i, c, sub);
+                },
+              ),
+            ),
+          ],
         ),
-        Expanded(
-          child: ReorderableListView.builder(
-            buildDefaultDragHandles: false,
-            onReorder: _reorderSub,
-            itemCount: subs.length,
-            itemBuilder: (context, j) {
-              final sub = subs[j];
-              final swatch = sub.colorHex.isNotEmpty
-                  ? colorFromHex(sub.colorHex)
-                  : colorFromHex(axis.colorHex);
-              return ListTile(
-                key: ValueKey('sub:${sub.name}'),
-                leading: GestureDetector(
-                  onTap: () => _pickSubColor(j),
-                  child: CircleAvatar(backgroundColor: swatch, radius: 14),
-                ),
-                title: Text(
-                  sub.name,
-                  style: sub.hidden
-                      ? TextStyle(color: Theme.of(context).disabledColor)
-                      : null,
-                ),
-                subtitle: sub.colorHex.isEmpty
-                    ? Text('Uses ${axis.label} colour',
-                        style: Theme.of(context).textTheme.bodySmall)
-                    : null,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: Icon(sub.hidden
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined),
-                      tooltip: sub.hidden
-                          ? 'Hidden from charts — tap to show'
-                          : 'Shown on charts — tap to hide',
-                      onPressed: () => _toggleSubHidden(j),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Rename',
-                      onPressed: () => _renameSub(j),
-                    ),
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Remove',
-                      onPressed: () => _removeSub(j),
-                    ),
-                    ReorderableDragStartListener(
-                      index: j,
-                      child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 6),
-                        child: Icon(Icons.drag_handle),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+        floatingActionButton: _fab(),
+      ),
+    );
+  }
+
+  Widget _categoryTile(int rowIndex, int c) {
+    final axis = _axes[c];
+    final canRemove = _axes.length > kMinAxes;
+    return ListTile(
+      key: ValueKey('c:${axis.key}'),
+      leading: GestureDetector(
+        onTap: () => _pickColor(c),
+        child: CircleAvatar(backgroundColor: colorFromHex(axis.colorHex), radius: 14),
+      ),
+      title: TextFormField(
+        initialValue: axis.label,
+        style: axis.hidden ? TextStyle(color: Theme.of(context).disabledColor) : null,
+        decoration: const InputDecoration(isDense: true, border: InputBorder.none),
+        onChanged: (v) => _rename(c, v),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.add),
+            tooltip: 'Add subcategory',
+            onPressed: () => _addSubTo(c),
           ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(axis.hidden
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined),
+            tooltip: axis.hidden ? 'Hidden — tap to show' : 'Shown — tap to hide',
+            onPressed: () => _toggleHidden(c),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.delete_outline),
+            tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes categories',
+            onPressed: canRemove ? () => _remove(c) : null,
+          ),
+          ReorderableDragStartListener(
+            index: rowIndex,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.drag_handle),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _subcategoryTile(int rowIndex, int c, int s) {
+    final axis = _axes[c];
+    final sub = axis.subcategories[s];
+    final swatch = sub.colorHex.isNotEmpty
+        ? colorFromHex(sub.colorHex)
+        : colorFromHex(axis.colorHex);
+    return Padding(
+      key: ValueKey('s:${sub.id}'),
+      padding: const EdgeInsets.only(left: 32),
+      child: ListTile(
+        dense: true,
+        leading: GestureDetector(
+          onTap: () => _pickSubColor(c, s),
+          child: CircleAvatar(backgroundColor: swatch, radius: 11),
         ),
+        title: TextFormField(
+          initialValue: sub.name,
+          style: sub.hidden ? TextStyle(color: Theme.of(context).disabledColor) : null,
+          decoration: const InputDecoration(isDense: true, border: InputBorder.none),
+          onChanged: (v) => _renameSubInline(c, s, v),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(sub.hidden
+                  ? Icons.visibility_off_outlined
+                  : Icons.visibility_outlined),
+              tooltip: sub.hidden ? 'Hidden — tap to show' : 'Shown — tap to hide',
+              onPressed: () => _toggleSubHidden(c, s),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Remove',
+              onPressed: () => _removeSub(c, s),
+            ),
+            ReorderableDragStartListener(
+              index: rowIndex,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4),
+                child: Icon(Icons.drag_handle, size: 20),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget? _fab() {
+    final s = widget.repo.settings;
+    final list = <Widget>[
+      if (s.showAddSubcategoryButton)
+        FloatingActionButton.extended(
+          heroTag: 'fab_sub',
+          onPressed: _addSubBottom,
+          icon: const Icon(Icons.add),
+          label: const Text('Add subcategory'),
+        ),
+      if (s.showAddCategoryButton)
+        FloatingActionButton.extended(
+          heroTag: 'fab_cat',
+          onPressed: _axes.length < kMaxAxes ? _addCategory : null,
+          icon: const Icon(Icons.add),
+          label: Text(_axes.length < kMaxAxes ? 'Add category' : 'Max $kMaxAxes'),
+        ),
+    ];
+    if (list.isEmpty) return null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < list.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          list[i],
+        ],
       ],
     );
   }

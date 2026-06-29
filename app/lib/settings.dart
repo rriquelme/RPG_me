@@ -10,6 +10,12 @@ class Settings {
   static const _kAverage = 'octagon_average';
   static const _kFirstDay = 'first_day_of_week';
   static const _kShowDash = 'show_dashboard_on_log';
+  static const _kTrackNumber = 'track_number';
+  static const _kTrackPercentage = 'track_percentage';
+  static const _kLogBtn = 'show_log_button';
+  static const _kAddCatBtn = 'show_add_category_button';
+  static const _kAddSubBtn = 'show_add_subcategory_button';
+  static const _kDayNumbers = 'show_day_numbers';
 
   final String baseUrl;
   final String user;
@@ -17,6 +23,12 @@ class Settings {
   final bool averagePerDay;
   final int firstDayOfWeek; // DateTime.monday(1)..DateTime.sunday(7)
   final bool showDashboardOnLog; // show a category dashboard atop the Log screen
+  final bool trackNumber; // enable the "number" metric + log field
+  final bool trackPercentage; // enable the "percentage" metric + log field
+  final bool showLogButton; // bottom +Log button
+  final bool showAddCategoryButton; // bottom +Category button
+  final bool showAddSubcategoryButton; // bottom +Subcategory button
+  final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
 
   const Settings({
     required this.baseUrl,
@@ -25,6 +37,12 @@ class Settings {
     this.averagePerDay = false,
     this.firstDayOfWeek = DateTime.monday,
     this.showDashboardOnLog = false,
+    this.trackNumber = false,
+    this.trackPercentage = false,
+    this.showLogButton = true,
+    this.showAddCategoryButton = false,
+    this.showAddSubcategoryButton = false,
+    this.showDayNumbers = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -36,6 +54,12 @@ class Settings {
     bool? averagePerDay,
     int? firstDayOfWeek,
     bool? showDashboardOnLog,
+    bool? trackNumber,
+    bool? trackPercentage,
+    bool? showLogButton,
+    bool? showAddCategoryButton,
+    bool? showAddSubcategoryButton,
+    bool? showDayNumbers,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -44,6 +68,14 @@ class Settings {
         averagePerDay: averagePerDay ?? this.averagePerDay,
         firstDayOfWeek: firstDayOfWeek ?? this.firstDayOfWeek,
         showDashboardOnLog: showDashboardOnLog ?? this.showDashboardOnLog,
+        trackNumber: trackNumber ?? this.trackNumber,
+        trackPercentage: trackPercentage ?? this.trackPercentage,
+        showLogButton: showLogButton ?? this.showLogButton,
+        showAddCategoryButton:
+            showAddCategoryButton ?? this.showAddCategoryButton,
+        showAddSubcategoryButton:
+            showAddSubcategoryButton ?? this.showAddSubcategoryButton,
+        showDayNumbers: showDayNumbers ?? this.showDayNumbers,
       );
 
   static Future<Settings> load() async {
@@ -55,8 +87,25 @@ class Settings {
       averagePerDay: prefs.getBool(_kAverage) ?? false,
       firstDayOfWeek: prefs.getInt(_kFirstDay) ?? DateTime.monday,
       showDashboardOnLog: prefs.getBool(_kShowDash) ?? false,
+      trackNumber: prefs.getBool(_kTrackNumber) ?? false,
+      trackPercentage: prefs.getBool(_kTrackPercentage) ?? false,
+      showLogButton: prefs.getBool(_kLogBtn) ?? true,
+      showAddCategoryButton: prefs.getBool(_kAddCatBtn) ?? false,
+      showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
+      showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
     );
   }
+
+  static Future<void> saveBool(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  // Keys for the boolean toggles, exposed for saveBool.
+  static const kLogBtnKey = _kLogBtn;
+  static const kAddCatBtnKey = _kAddCatBtn;
+  static const kAddSubBtnKey = _kAddSubBtn;
+  static const kDayNumbersKey = _kDayNumbers;
 
   static Future<void> save(String baseUrl, String user) async {
     final prefs = await SharedPreferences.getInstance();
@@ -81,6 +130,16 @@ class Settings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kShowDash, show);
   }
+
+  static Future<void> saveTrackNumber(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTrackNumber, on);
+  }
+
+  static Future<void> saveTrackPercentage(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTrackPercentage, on);
+  }
 }
 
 /// The selectable windows for the home octagon.
@@ -90,13 +149,13 @@ class OctagonPeriod {
   const OctagonPeriod(this.key, this.label);
 
   static const all = [
+    OctagonPeriod('today', 'Today'),
     OctagonPeriod('this_week', 'This week'),
-    OctagonPeriod('last_7', 'Last 7 days'),
     OctagonPeriod('this_month', 'This month'),
-    OctagonPeriod('last_30', 'Last 30 days'),
-    OctagonPeriod('ytd', 'Year to date'),
-    OctagonPeriod('last_365', 'Last year'),
+    OctagonPeriod('this_year', 'This year'),
     OctagonPeriod('all', 'All time'),
+    OctagonPeriod('custom_day', 'Custom: single day'),
+    OctagonPeriod('custom_range', 'Custom: range of days'),
   ];
 
   /// Inclusive start datetime for a period key, or null for all-time.
@@ -105,6 +164,8 @@ class OctagonPeriod {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     switch (key) {
+      case 'today':
+        return today;
       case 'this_week':
         final delta = (today.weekday - firstDayOfWeek + 7) % 7;
         return today.subtract(Duration(days: delta));
@@ -112,12 +173,8 @@ class OctagonPeriod {
         return today.subtract(const Duration(days: 6));
       case 'this_month':
         return DateTime(now.year, now.month, 1);
-      case 'last_30':
-        return today.subtract(const Duration(days: 29));
-      case 'ytd':
+      case 'this_year':
         return DateTime(now.year, 1, 1);
-      case 'last_365':
-        return today.subtract(const Duration(days: 364));
       case 'all':
       default:
         return null;

@@ -22,12 +22,16 @@ class OctagonView {
   final Map<String, int> seconds; // per axis, within the window
   final Map<String, int> exp; // per axis, within the window
   final Map<String, int> counts; // events per axis, within the window
+  final Map<String, double> numbers; // summed "number" per axis
+  final Map<String, double> percentAvg; // averaged "percentage" per axis
   final int days; // days the window covers (for average-per-day)
   const OctagonView({
     required this.axes,
     required this.seconds,
     required this.exp,
     required this.counts,
+    required this.numbers,
+    required this.percentAvg,
     required this.days,
   });
 }
@@ -99,6 +103,8 @@ class Repository {
     DateTime? at,
     String subcategory = '',
     bool hidden = false,
+    double? number,
+    double? percentage,
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -108,6 +114,8 @@ class Repository {
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
       hidden: hidden,
+      number: number,
+      percentage: percentage,
       exp: resolvedExp,
       note: note,
       timestamp: at ?? DateTime.now(),
@@ -125,8 +133,8 @@ class Repository {
 
   /// Per-day breakdown of an axis's subcategories (counts/seconds + the
   /// dominant subcategory each day), for the "all subcategories" heatmap.
-  Future<SubcatDays> subcategoryDays(String axisKey) async =>
-      _engine.subcategoryDays(axisKey);
+  Future<SubcatDays> subcategoryDays(String axisKey, {bool includeHidden = false}) async =>
+      _engine.subcategoryDays(axisKey, includeHidden: includeHidden);
 
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.
@@ -151,6 +159,8 @@ class Repository {
     String note = '',
     String subcategory = '',
     bool hidden = false,
+    double? number,
+    double? percentage,
   }) async {
     final i = _events.indexWhere((e) => e.id == id);
     if (i < 0) return;
@@ -162,6 +172,8 @@ class Repository {
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
       hidden: hidden,
+      number: number,
+      percentage: percentage,
       exp: exp,
       note: note,
       timestamp: at ?? _events[i].timestamp,
@@ -174,22 +186,28 @@ class Repository {
   // --- period-aware octagon data -----------------------------------------
   /// Per-axis seconds + exp within [since] (null = all time) and the number of
   /// days the window covers (for "average per day").
-  OctagonView octagonView(DateTime? since) {
+  /// Per-axis octagon data over [since]..[until]. [until] is an exclusive upper
+  /// bound (midnight after the last day); null means "up to now".
+  OctagonView octagonView(DateTime? since, {DateTime? until}) {
     int days;
     if (since == null) {
       final first = _engine.firstEventDate();
       days = first == null
           ? 1
           : DateTime.now().difference(DateTime(first.year, first.month, first.day)).inDays + 1;
+    } else if (until != null) {
+      days = until.difference(since).inDays;
     } else {
       days = DateTime.now().difference(since).inDays + 1;
     }
     if (days < 1) days = 1;
     return OctagonView(
       axes: _axes,
-      seconds: _engine.timeTotals(since: since, excludeHidden: true).byAxis,
-      exp: _engine.expByAxis(since: since, excludeHidden: true),
-      counts: _engine.countByAxis(since: since, excludeHidden: true),
+      seconds: _engine.timeTotals(since: since, until: until, excludeHidden: true).byAxis,
+      exp: _engine.expByAxis(since: since, until: until, excludeHidden: true),
+      counts: _engine.countByAxis(since: since, until: until, excludeHidden: true),
+      numbers: _engine.numberByAxis(since: since, until: until, excludeHidden: true),
+      percentAvg: _engine.percentAvgByAxis(since: since, until: until, excludeHidden: true),
       days: days,
     );
   }
