@@ -174,22 +174,26 @@ class Repository {
   // --- period-aware octagon data -----------------------------------------
   /// Per-axis seconds + exp within [since] (null = all time) and the number of
   /// days the window covers (for "average per day").
-  OctagonView octagonView(DateTime? since) {
+  /// Per-axis octagon data over [since]..[until]. [until] is an exclusive upper
+  /// bound (midnight after the last day); null means "up to now".
+  OctagonView octagonView(DateTime? since, {DateTime? until}) {
     int days;
     if (since == null) {
       final first = _engine.firstEventDate();
       days = first == null
           ? 1
           : DateTime.now().difference(DateTime(first.year, first.month, first.day)).inDays + 1;
+    } else if (until != null) {
+      days = until.difference(since).inDays;
     } else {
       days = DateTime.now().difference(since).inDays + 1;
     }
     if (days < 1) days = 1;
     return OctagonView(
       axes: _axes,
-      seconds: _engine.timeTotals(since: since, excludeHidden: true).byAxis,
-      exp: _engine.expByAxis(since: since, excludeHidden: true),
-      counts: _engine.countByAxis(since: since, excludeHidden: true),
+      seconds: _engine.timeTotals(since: since, until: until, excludeHidden: true).byAxis,
+      exp: _engine.expByAxis(since: since, until: until, excludeHidden: true),
+      counts: _engine.countByAxis(since: since, until: until, excludeHidden: true),
       days: days,
     );
   }

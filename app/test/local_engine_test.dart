@@ -155,6 +155,21 @@ void main() {
     expect(sd.dominant[k], 'gym');
   });
 
+  test('countByAxis/timeTotals honor a since..until window', () {
+    final eng = LocalEngine([
+      ev('health', 'a', seconds: 600, at: DateTime(2026, 6, 1, 9)),
+      ev('health', 'b', seconds: 600, at: DateTime(2026, 6, 3, 9)),
+      ev('health', 'c', seconds: 600, at: DateTime(2026, 6, 5, 9)),
+    ]);
+    // Window covering just Jun 3 (until = exclusive midnight Jun 4).
+    final since = DateTime(2026, 6, 3);
+    final until = DateTime(2026, 6, 4);
+    expect(eng.countByAxis(since: since, until: until)['health'], 1);
+    expect(eng.timeTotals(since: since, until: until).byAxis['health'], 600);
+    // Open-ended (no until) from Jun 3 sees Jun 3 and Jun 5.
+    expect(eng.countByAxis(since: since)['health'], 2);
+  });
+
   test('hidden events are excluded from the octagon but counted elsewhere', () {
     final eng = LocalEngine([
       ev('health', 'gym', exp: 60, seconds: 3600),

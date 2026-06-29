@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.24
+
+- **Custom time window** — next to *Avg / day* there's now a **Custom** chip.
+  Tap it to pick **a single day** or **a range of days**; the octagon then shows
+  exactly that window. Under the chart, **‹ ›** arrows step the window by its own
+  length (previous/next day, or previous/next range), with a **Clear** link to
+  return to the preset periods.
+
 ## What's new in 0.23
 
 - **Timers get subcategories** — the New/Edit timer dialogs now have a
