@@ -285,7 +285,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
         ],
       ),
     );
-    if (c != null) await _addSubTo(c);
+    if (c != null) _addSubTo(c);
   }
 
   /// Inline rename (tap the name) — mirrors category renaming. No setState so
