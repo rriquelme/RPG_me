@@ -26,6 +26,18 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.30
+
+- **One unified Categories screen.** No more Categories/Subcategories tabs —
+  every category and its (indented) subcategories show on a single screen. Each
+  category has a **+** to add a subcategory to it. Drag the ☰ handle to reorder
+  anything: a subcategory can move within its category **or onto another
+  category**, and a category moves together with its subcategories.
+- The **Add category** switch still puts its button next to **Save** (off) or at
+  the bottom (on). The **Add subcategory** switch adds an optional bottom
+  *Add subcategory* button (pick a category) — subcategories never get a button
+  next to Save, since every category already has its own **+**.
+
 ## What's new in 0.29
 
 - **Add-category / Add-subcategory buttons moved to where they belong.** They no
