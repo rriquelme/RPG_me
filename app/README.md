@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.21
+
+- **Subcategory heatmap on the Activity screen** — the Activity screen now has a
+  third **“By subcategory”** calendar under *All activity* and *By category*. It
+  follows the selected category and defaults to **all subcategories**, colouring
+  each day by the one you logged most; pick a specific subcategory to drill in.
+
 ## What's new in 0.20
 
 - **Create a subcategory while logging** — the Subcategory dropdown is now

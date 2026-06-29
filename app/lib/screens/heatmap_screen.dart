@@ -6,10 +6,12 @@ import '../repository.dart';
 
 enum _Metric { count, time }
 
-/// GitHub-contributions-style calendars: a **global** grid for all activity and
-/// one below it filtered by category. Defaults to **frequency** (how many times
-/// per day); a single log is a light cell, more are darker. Tap any day to see
-/// its frequency and time spent. A toggle switches the shading to time spent.
+/// GitHub-contributions-style calendars: a **global** grid for all activity,
+/// one filtered **by category**, and a third **by subcategory** (for the
+/// selected category — all subcategories coloured by each day's dominant, or a
+/// single picked one). Defaults to **frequency** (how many times per day); a
+/// single log is a light cell, more are darker. Tap any day to see its
+/// frequency and time spent. A toggle switches the shading to time spent.
 class HeatmapScreen extends StatefulWidget {
   final Repository repo;
   const HeatmapScreen({super.key, required this.repo});
@@ -26,12 +28,29 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   String? _axisKey;
   Map<String, int> _filteredCounts = {};
   Map<String, int> _filteredSeconds = {};
+  // "By subcategory" section (3rd chart), for the selected category.
+  String? _subKey; // null = all subcategories, coloured by each day's dominant
+  Map<String, int> _subCounts = {};
+  Map<String, int> _subSeconds = {};
+  Map<String, Color>? _subDayColors;
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _loadAll();
+  }
+
+  AxisDef? _axisFor(String? key) {
+    for (final a in _axes) {
+      if (a.key == key) return a;
+    }
+    return null;
+  }
+
+  Color _subColor(AxisDef axis, String name, Color fallback) {
+    final hex = axis.subcategoryByName(name)?.colorHex ?? '';
+    return hex.isEmpty ? fallback : colorFromHex(hex);
   }
 
   Future<void> _loadAll() async {
@@ -45,6 +64,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       _axisKey = axes.isNotEmpty ? axes.first.key : null;
     });
     await _loadFiltered();
+    await _loadSub();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -60,6 +80,49 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     }
   }
 
+  /// Load the "By subcategory" chart for the selected category: all
+  /// subcategories (dominant-by-day colouring) or a single picked one.
+  Future<void> _loadSub() async {
+    final key = _axisKey;
+    final axis = _axisFor(key);
+    if (key == null || axis == null || axis.subcategories.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _subCounts = {};
+          _subSeconds = {};
+          _subDayColors = null;
+        });
+      }
+      return;
+    }
+    if (_subKey == null) {
+      final days = await widget.repo.subcategoryDays(key);
+      final fallback = colorFromHex(axis.colorHex);
+      if (mounted) {
+        setState(() {
+          _subCounts = days.counts;
+          _subSeconds = days.seconds;
+          _subDayColors = {
+            for (final e in days.dominant.entries)
+              e.key: _subColor(axis, e.value, fallback),
+          };
+        });
+      }
+    } else {
+      final counts =
+          await widget.repo.dailyCounts(axisKey: key, subcategory: _subKey);
+      final seconds =
+          await widget.repo.dailySeconds(axisKey: key, subcategory: _subKey);
+      if (mounted) {
+        setState(() {
+          _subCounts = counts;
+          _subSeconds = seconds;
+          _subDayColors = null;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -69,6 +132,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       );
     }
     final isTime = _metric == _Metric.time;
+    final subAxis = _axisFor(_axisKey);
     return Scaffold(
       appBar: AppBar(title: const Text('Activity')),
       body: ListView(
@@ -113,8 +177,12 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                         ))
                     .toList(),
                 onChanged: (v) {
-                  setState(() => _axisKey = v);
+                  setState(() {
+                    _axisKey = v;
+                    _subKey = null; // subcategories are per-category
+                  });
                   _loadFiltered();
+                  _loadSub();
                 },
               ),
             ],
@@ -129,6 +197,58 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                 : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
             firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
           ),
+          if (subAxis != null && subAxis.subcategories.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Text('By subcategory',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                DropdownButton<String?>(
+                  value: _subKey,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                        value: null, child: Text('All subcategories')),
+                    ...subAxis.subcategories.map((s) => DropdownMenuItem<String?>(
+                          value: s.name,
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Container(
+                                width: 12,
+                                height: 12,
+                                color: _subColor(subAxis, s.name,
+                                    colorFromHex(subAxis.colorHex))),
+                            const SizedBox(width: 8),
+                            Text(s.name),
+                            if (s.hidden) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.visibility_off_outlined,
+                                  size: 14,
+                                  color: Theme.of(context).disabledColor),
+                            ],
+                          ]),
+                        )),
+                  ],
+                  onChanged: (v) {
+                    setState(() => _subKey = v);
+                    _loadSub();
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            HeatGrid(
+              counts: _subCounts,
+              seconds: _subSeconds,
+              isTime: isTime,
+              baseColor: _subKey == null
+                  ? colorFromHex(subAxis.colorHex)
+                  : _subColor(subAxis, _subKey!, colorFromHex(subAxis.colorHex)),
+              firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+              dayColors: _subDayColors,
+            ),
+          ],
         ],
       ),
     );
