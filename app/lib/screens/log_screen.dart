@@ -42,14 +42,13 @@ class _LogScreenState extends State<LogScreen> {
   bool _submitting = false;
   String? _error;
 
-  // Activity heatmaps shown at the top when the setting is on: one for the
-  // whole category, and one for the subcategories — either a single picked
-  // subcategory, or (by default) all of them coloured by the day's dominant.
+  // Activity heatmap shown at the top when the setting is on. With no
+  // subcategory picked (None) it shows the whole category; pick a subcategory
+  // and it shows just that subcategory instead.
   Map<String, int> _catCounts = {};
   Map<String, int> _catSeconds = {};
   Map<String, int> _subCounts = {};
   Map<String, int> _subSeconds = {};
-  Map<String, Color>? _subDayColors; // set for the "all subcategories" view
 
   @override
   void initState() {
@@ -162,44 +161,27 @@ class _LogScreenState extends State<LogScreen> {
     return null;
   }
 
-  /// Refresh both activity heatmaps for the current selection. The category
-  /// chart always shows the whole category. The subcategory chart shows the
-  /// picked subcategory (in its colour); with none picked it shows all
-  /// subcategories, each day coloured by that day's dominant subcategory. The
-  /// "last click" wins.
+  /// Refresh the activity heatmap for the current selection. With no
+  /// subcategory picked (None) we show the whole category; with one picked we
+  /// show just that subcategory. The "last click" wins.
   Future<void> _loadActivity() async {
     final key = _selectedAxis;
     if (key == null) return;
-    final axis = _axisFor(key);
+    final sub = _selectedSub;
     final cat = await widget.repo.dailyCounts(axisKey: key);
     final catS = await widget.repo.dailySeconds(axisKey: key);
-
-    var subC = <String, int>{};
-    var subS = <String, int>{};
-    Map<String, Color>? dayColors;
-    final sub = _selectedSub;
-    if (axis != null && axis.subcategories.isNotEmpty) {
-      if (sub == null) {
-        final days = await widget.repo.subcategoryDays(key);
-        subC = days.counts;
-        subS = days.seconds;
-        final fallback = colorFromHex(axis.colorHex);
-        dayColors = {
-          for (final e in days.dominant.entries)
-            e.key: _subColor(axis, e.value, fallback),
-        };
-      } else {
-        subC = await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
-        subS = await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
-      }
-    }
+    final subC = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
+    final subS = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
     if (mounted) {
       setState(() {
         _catCounts = cat;
         _catSeconds = catS;
         _subCounts = subC;
         _subSeconds = subS;
-        _subDayColors = dayColors;
       });
     }
   }
@@ -294,36 +276,28 @@ class _LogScreenState extends State<LogScreen> {
           child: ListView(
             children: [
               if (showDash && axis != null) ...[
-                // Dashboard 1: the whole category's activity.
-                _ActivityCard(
-                  title: 'Activity · ${axis.label}',
-                  counts: _catCounts,
-                  seconds: _catSeconds,
-                  baseColor: colorFromHex(axis.colorHex),
-                  firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-                  selectionKey: 'cat/$_selectedAxis',
-                ),
-                // Dashboard 2 (the "3rd"): only when the category has
-                // subcategories. With none picked it shows ALL subcategories,
-                // each day coloured by that day's dominant subcategory; pick one
-                // to see just that subcategory's activity in its own colour.
-                if (axis.subcategories.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                // A single activity dashboard: the whole category when no
+                // subcategory is picked (None), or just the picked subcategory
+                // (replacing the category one) when one is chosen.
+                if (_selectedSub == null)
                   _ActivityCard(
-                    title: _selectedSub == null
-                        ? 'Activity · ${axis.label} › all subcategories'
-                        : 'Activity · ${axis.label} › $_selectedSub',
+                    title: 'Activity · ${axis.label}',
+                    counts: _catCounts,
+                    seconds: _catSeconds,
+                    baseColor: colorFromHex(axis.colorHex),
+                    firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+                    selectionKey: 'cat/$_selectedAxis',
+                  )
+                else
+                  _ActivityCard(
+                    title: 'Activity · ${axis.label} › $_selectedSub',
                     counts: _subCounts,
                     seconds: _subSeconds,
-                    baseColor: _selectedSub == null
-                        ? colorFromHex(axis.colorHex)
-                        : _subColor(
-                            axis, _selectedSub!, colorFromHex(axis.colorHex)),
+                    baseColor: _subColor(
+                        axis, _selectedSub!, colorFromHex(axis.colorHex)),
                     firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
                     selectionKey: 'sub/$_selectedAxis/$_selectedSub',
-                    dayColors: _subDayColors,
                   ),
-                ],
                 const SizedBox(height: 20),
               ],
               DropdownButtonFormField<String>(
@@ -376,11 +350,9 @@ class _LogScreenState extends State<LogScreen> {
                   value: _selectedSub,
                   decoration: const InputDecoration(labelText: 'Subcategory'),
                   items: [
-                    DropdownMenuItem<String?>(
+                    const DropdownMenuItem<String?>(
                       value: null,
-                      child: Text(axis.subcategories.isEmpty
-                          ? 'None'
-                          : 'All subcategories'),
+                      child: Text('None'),
                     ),
                     ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
                           value: s.name,

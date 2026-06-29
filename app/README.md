@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.22
+
+- **Log screen dashboard: one chart, switched by the picker** — the Subcategory
+  dropdown now defaults to **None** (no more "All subcategories"). With None,
+  the dashboard shows the **category** activity; pick a subcategory and it
+  **replaces** that with the subcategory's activity (one chart at a time). Still
+  gated by the "View dashboard on log creation" setting.
+
 ## What's new in 0.21
 
 - **Subcategory heatmap on the Activity screen** — the Activity screen now has a
