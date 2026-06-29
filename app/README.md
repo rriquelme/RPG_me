@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.14
+
+- **Tap a category on the octagon** to open a new log with that category
+  already selected — the **+ Log** button stays for picking from scratch.
+- **Optional category dashboard on the Log screen** — a per-category summary
+  (this week / all-time counts & time, level, last logged) at the top of the
+  Log screen. Off by default; enable **Settings → "View dashboard on log
+  creation"**.
+
 ## What's new in 0.13
 
 - **Heatmap fixed** — it's now a proper **month calendar**: every day sits in

@@ -194,8 +194,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return v.axes.map((a) {
       var value = _rawValue(v, a.key);
       if (average && v.days > 0) value = value / v.days;
-      return RadarPoint(label: a.label, color: colorFromHex(a.colorHex), value: value);
+      return RadarPoint(
+        axisKey: a.key,
+        label: a.label,
+        color: colorFromHex(a.colorHex),
+        value: value,
+      );
     }).toList();
+  }
+
+  Future<void> _logForCategory(String axisKey) async {
+    final repo = _repo;
+    if (repo == null) return;
+    final logged = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => LogScreen(repo: repo, initialAxisKey: axisKey)),
+    );
+    if (logged == true) _reload();
   }
 
   String _formatValue(double v, bool average) {
@@ -315,6 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
         OctagonChart(
           points: _points(octView, average),
           formatValue: (v) => _formatValue(v, average),
+          onTapAxis: _logForCategory,
         ),
         const SizedBox(height: 24),
         Center(

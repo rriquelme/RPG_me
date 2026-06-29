@@ -9,12 +9,14 @@ class Settings {
   static const _kPeriod = 'octagon_period';
   static const _kAverage = 'octagon_average';
   static const _kFirstDay = 'first_day_of_week';
+  static const _kShowDash = 'show_dashboard_on_log';
 
   final String baseUrl;
   final String user;
   final String period; // see OctagonPeriod keys
   final bool averagePerDay;
   final int firstDayOfWeek; // DateTime.monday(1)..DateTime.sunday(7)
+  final bool showDashboardOnLog; // show a category dashboard atop the Log screen
 
   const Settings({
     required this.baseUrl,
@@ -22,6 +24,7 @@ class Settings {
     this.period = 'this_week',
     this.averagePerDay = false,
     this.firstDayOfWeek = DateTime.monday,
+    this.showDashboardOnLog = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -32,6 +35,7 @@ class Settings {
     String? period,
     bool? averagePerDay,
     int? firstDayOfWeek,
+    bool? showDashboardOnLog,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -39,6 +43,7 @@ class Settings {
         period: period ?? this.period,
         averagePerDay: averagePerDay ?? this.averagePerDay,
         firstDayOfWeek: firstDayOfWeek ?? this.firstDayOfWeek,
+        showDashboardOnLog: showDashboardOnLog ?? this.showDashboardOnLog,
       );
 
   static Future<Settings> load() async {
@@ -49,6 +54,7 @@ class Settings {
       period: prefs.getString(_kPeriod) ?? 'this_week',
       averagePerDay: prefs.getBool(_kAverage) ?? false,
       firstDayOfWeek: prefs.getInt(_kFirstDay) ?? DateTime.monday,
+      showDashboardOnLog: prefs.getBool(_kShowDash) ?? false,
     );
   }
 
@@ -69,6 +75,11 @@ class Settings {
   static Future<void> saveFirstDayOfWeek(int day) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kFirstDay, day);
+  }
+
+  static Future<void> saveShowDashboardOnLog(bool show) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kShowDash, show);
   }
 }
 

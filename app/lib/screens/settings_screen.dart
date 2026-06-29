@@ -46,6 +46,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setShowDashboard(bool show) async {
+    await Settings.saveShowDashboardOnLog(show);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(showDashboardOnLog: show));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -70,6 +77,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Text(
             'Used by the “This week” view and the activity heatmap.',
             style: TextStyle(fontSize: 13),
+          ),
+          const Divider(height: 40),
+          Text('Logging', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('View dashboard on log creation'),
+            subtitle: const Text(
+              'Show a summary of the selected category at the top of the Log '
+              'screen.',
+            ),
+            value: widget.repo.settings.showDashboardOnLog,
+            onChanged: _setShowDashboard,
           ),
           const Divider(height: 40),
           Text('API settings', style: Theme.of(context).textTheme.titleMedium),
