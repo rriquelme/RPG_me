@@ -6,6 +6,9 @@ import '../models.dart';
 import '../repository.dart';
 import 'heatmap_screen.dart' show HeatGrid;
 
+/// Sentinel value for the "Create new…" item in the subcategory dropdown.
+const String _kCreateSub = '__create_subcategory__';
+
 /// Log an activity: pick a category, name it, optionally record how long you
 /// spent and on which day/time. Pass [existing] to edit a logged entry instead.
 class LogScreen extends StatefulWidget {
@@ -83,6 +86,73 @@ class _LogScreenState extends State<LogScreen> {
   Color _subColor(AxisDef axis, String subName, Color fallback) {
     final hex = axis.subcategoryByName(subName)?.colorHex ?? '';
     return hex.isEmpty ? fallback : colorFromHex(hex);
+  }
+
+  /// Create a subcategory in place (name + optional colour), persist it on the
+  /// category, then auto-select it. Used by the dropdown's "Create new…" item.
+  Future<void> _createSubcategory(AxisDef axis) async {
+    final nameController = TextEditingController();
+    var colorHex = ''; // empty = inherit the category colour
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: Text('New subcategory · ${axis.label}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Name'),
+                onSubmitted: (_) => Navigator.pop(context, true),
+              ),
+              const SizedBox(height: 16),
+              const Text('Colour (optional)'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  _ColorDot(
+                    color: colorFromHex(axis.colorHex),
+                    selected: colorHex.isEmpty,
+                    icon: Icons.format_color_reset,
+                    onTap: () => setLocal(() => colorHex = ''),
+                  ),
+                  ...kAxisPalette.map((hex) => _ColorDot(
+                        color: colorFromHex(hex),
+                        selected: colorHex == hex,
+                        onTap: () => setLocal(() => colorHex = hex),
+                      )),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Create')),
+          ],
+        ),
+      ),
+    );
+    if (created != true) return;
+    final name = nameController.text.trim();
+    if (name.isEmpty) return;
+    if (axis.subcategoryByName(name) == null) {
+      await widget.repo.addSubcategory(axis.key, SubcategoryDef(name, colorHex));
+    }
+    if (!mounted) return;
+    setState(() {
+      _axes = widget.repo.axesConfig; // pick up the new subcategory
+      _selectedSub = name; // auto-select it
+    });
+    _loadActivity();
   }
 
   AxisDef? _axisFor(String? key) {
@@ -298,15 +368,20 @@ class _LogScreenState extends State<LogScreen> {
                 onChanged:
                     _submitting ? null : (v) => setState(() => _hidden = v ?? false),
               ),
-              // Subcategory picker (only when the category has subcategories).
-              if (axis != null && axis.subcategories.isNotEmpty) ...[
+              // Subcategory picker — always available so a new one can be
+              // created in place even when the category has none yet.
+              if (axis != null) ...[
                 const SizedBox(height: 4),
                 DropdownButtonFormField<String?>(
                   value: _selectedSub,
                   decoration: const InputDecoration(labelText: 'Subcategory'),
                   items: [
-                    const DropdownMenuItem<String?>(
-                        value: null, child: Text('All subcategories')),
+                    DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text(axis.subcategories.isEmpty
+                          ? 'None'
+                          : 'All subcategories'),
+                    ),
                     ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
                           value: s.name,
                           child: Row(children: [
@@ -325,8 +400,20 @@ class _LogScreenState extends State<LogScreen> {
                             ],
                           ]),
                         )),
+                    const DropdownMenuItem<String?>(
+                      value: _kCreateSub,
+                      child: Row(children: [
+                        Icon(Icons.add, size: 16),
+                        SizedBox(width: 8),
+                        Text('Create new…'),
+                      ]),
+                    ),
                   ],
                   onChanged: (v) {
+                    if (v == _kCreateSub) {
+                      _createSubcategory(axis);
+                      return;
+                    }
                     setState(() => _selectedSub = v);
                     _loadActivity(); // last click refreshes the dashboard
                   },
@@ -432,6 +519,37 @@ class _ActivityCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// A selectable colour swatch used by the "create subcategory" dialog.
+class _ColorDot extends StatelessWidget {
+  final Color color;
+  final bool selected;
+  final IconData? icon;
+  final VoidCallback onTap;
+  const _ColorDot({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: CircleAvatar(
+        backgroundColor: color,
+        radius: 18,
+        child: selected
+            ? const Icon(Icons.check, size: 18, color: Colors.white)
+            : (icon != null
+                ? Icon(icon, size: 18, color: Colors.white)
+                : null),
       ),
     );
   }

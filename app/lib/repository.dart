@@ -72,6 +72,18 @@ class Repository {
     await _store.saveAxes(_axes);
   }
 
+  /// Append a subcategory to a category and persist (used by the inline
+  /// "create subcategory" flow on the Log screen). No-op on duplicate names.
+  Future<void> addSubcategory(String axisKey, SubcategoryDef sub) async {
+    final i = _axes.indexWhere((a) => a.key == axisKey);
+    if (i < 0) return;
+    final axis = _axes[i];
+    if (axis.subcategories.any((s) => s.name == sub.name)) return;
+    _axes = List.of(_axes)
+      ..[i] = axis.copyWith(subcategories: [...axis.subcategories, sub]);
+    await _store.saveAxes(_axes);
+  }
+
   // --- reads (async to fit the existing FutureBuilder screens) ------------
   Future<List<AxisStat>> axes() async => _engine.octagon();
   Future<Summary> summary() async => _engine.summary(user: settings.user);

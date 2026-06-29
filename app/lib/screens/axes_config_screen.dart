@@ -14,7 +14,19 @@ enum _EditMode { categories, subcategories }
 /// reorder). Saved together.
 class AxesConfigScreen extends StatefulWidget {
   final Repository repo;
-  const AxesConfigScreen({super.key, required this.repo});
+
+  /// Open straight into the Subcategories tab.
+  final bool startInSubcategories;
+
+  /// When [startInSubcategories], focus this category's subcategories.
+  final String? focusAxisKey;
+
+  const AxesConfigScreen({
+    super.key,
+    required this.repo,
+    this.startInSubcategories = false,
+    this.focusAxisKey,
+  });
 
   @override
   State<AxesConfigScreen> createState() => _AxesConfigScreenState();
@@ -28,11 +40,18 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
 
   _EditMode _mode = _EditMode.categories;
   int _subAxisIndex = 0; // which category's subcategories we're editing
+  bool _dirty = false; // unsaved edits → prompt on back
 
   @override
   void initState() {
     super.initState();
     _axes = List.of(widget.repo.axesConfig);
+    if (widget.startInSubcategories) _mode = _EditMode.subcategories;
+    final fk = widget.focusAxisKey;
+    if (fk != null) {
+      final idx = _axes.indexWhere((a) => a.key == fk);
+      if (idx >= 0) _subAxisIndex = idx;
+    }
   }
 
   // --- category ops -------------------------------------------------------
@@ -47,7 +66,10 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   void _add() {
     if (_axes.length >= kMaxAxes) return;
     final color = kAxisPalette[_axes.length % kAxisPalette.length];
-    setState(() => _axes.add(AxisDef(_newKey(), 'New category', '', color)));
+    setState(() {
+      _axes.add(AxisDef(_newKey(), 'New category', '', color));
+      _dirty = true;
+    });
   }
 
   void _remove(int i) {
@@ -55,15 +77,20 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     setState(() {
       _axes.removeAt(i);
       if (_subAxisIndex >= _axes.length) _subAxisIndex = _axes.length - 1;
+      _dirty = true;
     });
   }
 
   void _rename(int i, String label) {
     _axes[i] = _axes[i].copyWith(label: label);
+    _dirty = true;
   }
 
   void _toggleHidden(int i) {
-    setState(() => _axes[i] = _axes[i].copyWith(hidden: !_axes[i].hidden));
+    setState(() {
+      _axes[i] = _axes[i].copyWith(hidden: !_axes[i].hidden);
+      _dirty = true;
+    });
   }
 
   void _reorder(int oldIndex, int newIndex) {
@@ -71,6 +98,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
       if (newIndex > oldIndex) newIndex -= 1;
       final moved = _axes.removeAt(oldIndex);
       _axes.insert(newIndex, moved);
+      _dirty = true;
     });
   }
 
@@ -78,8 +106,11 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   List<SubcategoryDef> get _subs => _axes[_subAxisIndex].subcategories;
 
   void _setSubs(List<SubcategoryDef> subs) {
-    setState(() => _axes[_subAxisIndex] =
-        _axes[_subAxisIndex].copyWith(subcategories: subs));
+    setState(() {
+      _axes[_subAxisIndex] =
+          _axes[_subAxisIndex].copyWith(subcategories: subs);
+      _dirty = true;
+    });
   }
 
   Future<void> _addSub() async {
@@ -174,7 +205,12 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
 
   Future<void> _pickColor(int i) async {
     final hex = await _chooseColor();
-    if (hex != null) setState(() => _axes[i] = _axes[i].copyWith(colorHex: hex));
+    if (hex != null) {
+      setState(() {
+        _axes[i] = _axes[i].copyWith(colorHex: hex);
+        _dirty = true;
+      });
+    }
   }
 
   Future<void> _pickSubColor(int j) async {
@@ -184,7 +220,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     }
   }
 
-  // --- save ---------------------------------------------------------------
+  // --- save / discard -----------------------------------------------------
   Future<void> _save() async {
     setState(() {
       _saving = true;
@@ -192,6 +228,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     });
     try {
       await widget.repo.saveAxes(_axes);
+      _dirty = false;
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() {
@@ -201,10 +238,42 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     }
   }
 
+  /// On back with unsaved edits, offer Save / Discard / Cancel.
+  Future<void> _confirmExit() async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Save changes?'),
+        content: const Text('You have unsaved changes to your categories.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'cancel'),
+              child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context, 'discard'),
+              child: const Text('Discard')),
+          FilledButton(
+              onPressed: () => Navigator.pop(context, 'save'),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (choice == 'save') {
+      await _save();
+    } else if (choice == 'discard') {
+      if (mounted) Navigator.of(context).pop(false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final subMode = _mode == _EditMode.subcategories;
-    return Scaffold(
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvoked: (didPop) {
+        if (!didPop) _confirmExit();
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Edit categories'),
         actions: [
@@ -245,6 +314,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
               icon: const Icon(Icons.add),
               label: Text(_axes.length < kMaxAxes ? 'Add category' : 'Max $kMaxAxes'),
             ),
+      ),
     );
   }
 

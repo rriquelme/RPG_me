@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.20
+
+- **Create a subcategory while logging** — the Subcategory dropdown is now
+  always shown, and its last item is **“Create new…”**. It opens a quick
+  name + colour dialog, adds the subcategory to that category, and
+  auto-selects it. Works even when the category had none yet.
+- **Unsaved-changes prompt** — leaving *Edit categories* (in either the
+  Categories or Subcategories tab) with unsaved edits now asks **Save /
+  Discard / Cancel**.
+
 ## What's new in 0.19
 
 - **Hide a whole subcategory from the charts** — in *Edit categories →
