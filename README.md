@@ -1,73 +1,128 @@
 # RPG_me 🎮
 
-Turn your life into an 8-axis RPG character sheet. Log your routines, watch the
-counts add up, and see your **octagon** (radar chart) grow as you level up each
-area of life.
+**Turn your life into an editable radar "octagon."** Log your routines and the
+time you spend, then watch each life category grow on a custom radar chart —
+with a GitHub-style activity heatmap, a multi-stopwatch timer, and your data in
+a plain Markdown file you own.
 
-> Build order: **local engine (this repo) → AWS Lambda backend → Flutter APK.**
-> Everything here is local-first and storage/UI agnostic so the same logic moves
-> to the cloud and the phone without a rewrite.
+It's an **offline-first Android app** (no account, no backend needed) backed by
+a small Python engine, with an **optional** AWS cloud for syncing across
+devices.
 
-## The octagon
+> **About (for the GitHub repo description):**
+> RPG_me — turn your life into an editable radar "octagon." Offline-first
+> Android app to log routines & time, track frequency/hours per category, with a
+> GitHub-style activity heatmap, a multi-timer stopwatch, and Markdown
+> export/import. Optional AWS (Lambda + DynamoDB) sync. Python engine + Flutter app.
 
-Eight life areas, one point each. Each is a *skill* that gains experience and
-levels up from the activities you log:
+---
 
-`Health · Mind · Career · Social · Finance · Creativity · Discipline · Spirit`
+## 📲 Get the app
 
-Axes are **data-driven** — edit [`data/config.json`](data/config.json) to
-rename, recolor, or repurpose them.
+Download the latest signed APK from **[Releases](../../releases/latest)**
+(`rpg_me.apk`).
 
-## Quick start
+1. Open the release on your Android phone and download `rpg_me.apk`.
+2. When prompted, allow **“install unknown apps”** for your browser/file manager
+   (the APK is debug-signed — fine for personal use).
+3. Open it, tap **Log**, and you're tracking. No setup, fully offline.
+
+> Installing a new version? **Install it as an update** (don't uninstall first)
+> so your data migrates.
+
+---
+
+## ✨ Features
+
+- **The octagon** — a radar chart of your life categories. Toggle between
+  **Frequency** (how often you log each one) and **Hours** (time spent).
+- **Editable categories (4–10)** — rename, recolour, add/remove, and drag to
+  reorder. Colours are optional.
+- **Flexible logging** — a tap-to-log entry with an optional name, optional
+  duration (hours/minutes), and a date/time picker so you can backfill.
+- **Multiple timers** — run several stopwatches at once (millisecond display);
+  “Stop” asks to save or discard, and the time is filed under a category.
+- **Activity heatmap** — a GitHub-contributions calendar, by frequency or time
+  spent, globally and per category; tap a day for its totals.
+- **Configurable window + averages** — view the octagon over the last 7/30
+  days, this month, YTD, last year, or all time — optionally as a per-day
+  average.
+- **Logged history** — review, edit, or delete any past entry.
+- **Your data, in Markdown** — everything lives in `rpg_me/data.md` on the
+  device (a readable table + JSON blocks). **Export / Import** it as a `.md`
+  file; the format is stable across versions.
+- **Optional sync** — point the app at an AWS backend and push your history
+  (idempotent, so re-syncing never double-counts).
+
+---
+
+## 🧱 How it's built
+
+Three layers that share one source of truth — the engine logic:
+
+| Layer | Path | What it is |
+|-------|------|------------|
+| **Engine** | [`rpgme/`](rpgme/) | Pure-Python core: categories, events, exp/levels, counts, streaks, time periods, the octagon. Storage- and UI-agnostic. |
+| **Backend** | [`backend/`](backend/) | The same engine behind an AWS **Lambda + API Gateway + DynamoDB** stack (SAM-deployable). Optional — only for sync. See [backend/README.md](backend/README.md). |
+| **App** | [`app/`](app/) | An offline-first **Flutter** app. A Dart port of the engine runs entirely on-device; sync is optional. Builds the Android APK. See [app/README.md](app/README.md). |
+
+---
+
+## 🛠️ Build & develop
+
+### The app (Android APK)
+
+The APK is built in CI on every push (see
+[`.github/workflows/release-apk.yml`](.github/workflows/release-apk.yml)) and
+attached to a Release. To build locally you need the
+[Flutter SDK](https://docs.flutter.dev/get-started/install); see
+[app/README.md](app/README.md) for the exact steps.
+
+### The Python engine (CLI)
+
+Useful for trying the core logic without the app:
 
 ```bash
 pip install -r requirements.txt          # only needed for the chart preview
-
-python cli.py axes                        # list your 8 axes
-python cli.py log health gym --exp 15     # record a routine, gain exp
-python cli.py log mind read               # default exp = 10
+python cli.py axes                        # list categories
+python cli.py log health gym --seconds 1800   # log 30 min to "health"
+python cli.py time                        # time tracked per period
 python cli.py status                      # levels + this week's counts
-python cli.py streak gym                  # current daily streak
 python cli.py chart                       # render octagon.png
-python cli.py summary                     # JSON snapshot (what the API returns)
 ```
 
-State is saved to `data/save_file.json`.
-
-## How it works
-
-| File | Role |
-|------|------|
-| `rpgme/models.py`  | `Axis`, `Skill`, and the experience/level curve |
-| `rpgme/config.py`  | loads the 8 axes from `data/config.json` |
-| `rpgme/store.py`   | `Store` interface + `JSONStore` (swap in `DynamoStore` later) |
-| `rpgme/engine.py`  | log events, level skills, compute counts/streaks/octagon |
-| `rpgme/chart.py`   | local matplotlib radar-chart preview |
-| `cli.py`           | command-line front end |
-
-**Counts / frequency:** every `log` appends an event `{axis, name, exp, timestamp}`.
-The engine derives totals, "this week" counts, and per-activity daily streaks
-from that event log — so adding "how often" stats later is just another query.
-
-## Roadmap
-
-- [x] **Phase 1 — Local engine** (this repo): skills, exp/levels, event log,
-      counters/streaks, octagon data + preview chart, CLI, tests.
-- [x] **Phase 2 — AWS Lambda backend** (see [`backend/`](backend/)): a
-      `DynamoStore(Store)` single-table design plus a Lambda + HTTP API that
-      exposes the *same* engine over REST. Deployable with `sam build && sam
-      deploy`. The engine code was reused unchanged. See
-      [backend/README.md](backend/README.md).
-- [x] **Phase 3 — Flutter APK** (see [`app/`](app/)): an **offline-first**
-      mobile app that logs routines with a tap and draws the octagon natively
-      (`fl_chart` RadarChart). Works with no backend (local event log + a Dart
-      port of the engine); an optional idempotent **Sync** pushes history to
-      the Phase 2 API. Builds a real Android `.apk`. See
-      [app/README.md](app/README.md).
-
-## Tests
+### The backend (AWS)
 
 ```bash
-python -c "import tests.test_engine as t; [getattr(t,n)() for n in dir(t) if n.startswith('test_')]"
+cd backend
+sam build && sam deploy --guided
 ```
-(or `pytest tests/` if you have pytest installed)
+
+Then put the output `ApiUrl` into the app's **API settings** and tap **Sync**.
+Full details in [backend/README.md](backend/README.md).
+
+---
+
+## ✅ Tests
+
+```bash
+# Python engine + Lambda handler
+python -c "import tests.test_engine as t; [getattr(t,n)() for n in dir(t) if n.startswith('test_')]"
+
+# Flutter (from app/)
+cd app && flutter test
+```
+
+---
+
+## 🌿 Branches & releases
+
+- **`dev`** is the default branch and the integration branch for new work and
+  **future releases**.
+- Pushing to `dev` (or `main`), or a commit message containing `[release]`,
+  triggers CI to build the APK and publish a GitHub Release.
+- Release tags follow `app-vMAJOR.MINOR.PATCH` (e.g. `app-v0.11.0`).
+
+---
+
+*Built with [Claude Code](https://claude.com/claude-code).*
