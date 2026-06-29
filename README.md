@@ -119,9 +119,11 @@ cd app && flutter test
 
 - **`dev`** is the default branch and the integration branch for new work and
   **future releases**.
-- Pushing to `dev` (or `main`), or a commit message containing `[release]`,
-  triggers CI to build the APK and publish a GitHub Release.
-- Release tags follow `app-vMAJOR.MINOR.PATCH` (e.g. `app-v0.11.0`).
+- A push to `dev`/`main` with a `[release]` commit (or an `app-vX.Y.Z` tag, or a
+  manual workflow run) triggers CI to build the APK and publish a GitHub
+  Release. Release tags follow `app-vMAJOR.MINOR.PATCH` (e.g. `app-v0.11.0`).
+- See **[CONTRIBUTING.md](CONTRIBUTING.md)** for local setup, the branching
+  model, the release checklist, and recommended `dev` branch protection.
 
 ---
 
