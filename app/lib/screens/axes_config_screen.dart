@@ -49,11 +49,21 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
   @override
   void initState() {
     super.initState();
-    _axes = List.of(widget.repo.axesConfig);
+    // Ensure every subcategory has a stable id (for inline-editable names).
+    _axes = [
+      for (final a in widget.repo.axesConfig)
+        a.copyWith(subcategories: [
+          for (final s in a.subcategories)
+            s.id.isEmpty ? s.copyWith(id: _genSubId()) : s
+        ])
+    ];
     if (widget.startInSubcategories) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _addSubBottom());
     }
   }
+
+  String _genSubId() =>
+      's${_rand.nextInt(1 << 32).toRadixString(16)}${_rand.nextInt(1 << 32).toRadixString(16)}';
 
   // --- flat row model (categories + indented subcategories) ---------------
   /// Each entry is [categoryIndex, subIndex] with subIndex < 0 for a category.
@@ -146,11 +156,65 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     return key;
   }
 
-  void _add() {
+  /// Add a category via a popup: name + colour.
+  Future<void> _addCategory() async {
     if (_axes.length >= kMaxAxes) return;
-    final color = kAxisPalette[_axes.length % kAxisPalette.length];
+    final controller = TextEditingController(text: 'New category');
+    var colorHex = kAxisPalette[_axes.length % kAxisPalette.length];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('New category'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: 'Name'),
+                onSubmitted: (_) => Navigator.pop(context, true),
+              ),
+              const SizedBox(height: 16),
+              const Text('Colour'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  for (final hex in kAxisPalette)
+                    InkWell(
+                      onTap: () => setLocal(() => colorHex = hex),
+                      customBorder: const CircleBorder(),
+                      child: CircleAvatar(
+                        backgroundColor: colorFromHex(hex),
+                        radius: 18,
+                        child: colorHex == hex
+                            ? const Icon(Icons.check, size: 18, color: Colors.white)
+                            : null,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel')),
+            FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Create')),
+          ],
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final name = controller.text.trim();
+    if (name.isEmpty) return;
     setState(() {
-      _axes.add(AxisDef(_newKey(), 'New category', '', color));
+      _axes.add(AxisDef(_newKey(), name, '', colorHex));
       _dirty = true;
     });
   }
@@ -183,12 +247,21 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     });
   }
 
-  Future<void> _addSubTo(int c) async {
-    final name = await _promptName(title: 'Add subcategory to ${_axes[c].label}');
-    if (name == null) return;
-    if (_axes[c].subcategories.any((s) => s.name == name)) return;
+  /// Add a subcategory directly under [c] (no dialog) — it gets a default name
+  /// to rename inline.
+  void _addSubTo(int c) {
+    final existing = _axes[c].subcategories.map((s) => s.name).toSet();
+    var name = 'New subcategory';
+    var n = 2;
+    while (existing.contains(name)) {
+      name = 'New subcategory $n';
+      n++;
+    }
     final color = kAxisPalette[_axes[c].subcategories.length % kAxisPalette.length];
-    _setSubs(c, [..._axes[c].subcategories, SubcategoryDef(name, color)]);
+    _setSubs(c, [
+      SubcategoryDef(name, color, false, _genSubId()),
+      ..._axes[c].subcategories,
+    ]);
   }
 
   /// Bottom "Add subcategory" button: pick a category, then add to it.
@@ -215,13 +288,13 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     if (c != null) await _addSubTo(c);
   }
 
-  Future<void> _renameSub(int c, int s) async {
-    final cur = _axes[c].subcategories[s];
-    final name = await _promptName(title: 'Rename subcategory', initial: cur.name);
-    if (name == null) return;
-    if (name != cur.name && _axes[c].subcategories.any((x) => x.name == name)) return;
-    final subs = List.of(_axes[c].subcategories)..[s] = cur.copyWith(name: name);
-    _setSubs(c, subs);
+  /// Inline rename (tap the name) — mirrors category renaming. No setState so
+  /// the field keeps focus while typing; the stable id keeps its reorder key.
+  void _renameSubInline(int c, int s, String name) {
+    final subs = List.of(_axes[c].subcategories)
+      ..[s] = _axes[c].subcategories[s].copyWith(name: name);
+    _axes[c] = _axes[c].copyWith(subcategories: subs);
+    _dirty = true;
   }
 
   void _removeSub(int c, int s) =>
@@ -232,28 +305,6 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     final subs = List.of(_axes[c].subcategories)
       ..[s] = cur.copyWith(hidden: !cur.hidden);
     _setSubs(c, subs);
-  }
-
-  Future<String?> _promptName({required String title, String initial = ''}) {
-    final controller = TextEditingController(text: initial);
-    return showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Name'),
-          onSubmitted: (v) => Navigator.pop(context, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.pop(context, controller.text.trim()),
-              child: const Text('OK')),
-        ],
-      ),
-    ).then((v) => (v == null || v.isEmpty) ? null : v);
   }
 
   // --- colours ------------------------------------------------------------
@@ -369,7 +420,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
               IconButton(
                 icon: const Icon(Icons.add),
                 tooltip: 'Add category',
-                onPressed: _axes.length < kMaxAxes ? _add : null,
+                onPressed: _axes.length < kMaxAxes ? _addCategory : null,
               ),
             TextButton(onPressed: _saving ? null : _save, child: const Text('Save')),
           ],
@@ -468,7 +519,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
         ? colorFromHex(sub.colorHex)
         : colorFromHex(axis.colorHex);
     return Padding(
-      key: ValueKey('s:${axis.key}:${sub.name}'),
+      key: ValueKey('s:${sub.id}'),
       padding: const EdgeInsets.only(left: 32),
       child: ListTile(
         dense: true,
@@ -476,9 +527,11 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
           onTap: () => _pickSubColor(c, s),
           child: CircleAvatar(backgroundColor: swatch, radius: 11),
         ),
-        title: Text(
-          sub.name,
+        title: TextFormField(
+          initialValue: sub.name,
           style: sub.hidden ? TextStyle(color: Theme.of(context).disabledColor) : null,
+          decoration: const InputDecoration(isDense: true, border: InputBorder.none),
+          onChanged: (v) => _renameSubInline(c, s, v),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -490,12 +543,6 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                   : Icons.visibility_outlined),
               tooltip: sub.hidden ? 'Hidden — tap to show' : 'Shown — tap to hide',
               onPressed: () => _toggleSubHidden(c, s),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: const Icon(Icons.edit_outlined),
-              tooltip: 'Rename',
-              onPressed: () => _renameSub(c, s),
             ),
             IconButton(
               visualDensity: VisualDensity.compact,
@@ -529,7 +576,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
       if (s.showAddCategoryButton)
         FloatingActionButton.extended(
           heroTag: 'fab_cat',
-          onPressed: _axes.length < kMaxAxes ? _add : null,
+          onPressed: _axes.length < kMaxAxes ? _addCategory : null,
           icon: const Icon(Icons.add),
           label: Text(_axes.length < kMaxAxes ? 'Add category' : 'Max $kMaxAxes'),
         ),

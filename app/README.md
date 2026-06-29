@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.31
+
+- The top **+** on the home screen now logs directly (same as the Log button).
+- Removed the **"me ·"** prefix before the events count.
+- In **Categories**: a category's **+** adds a subcategory **inline** right under
+  it (no popup) — rename it by tapping the name, just like categories
+  (subcategory rename pen is gone). The **Add category** button opens a popup to
+  type the name and pick a colour.
+
 ## What's new in 0.30
 
 - **One unified Categories screen.** No more Categories/Subcategories tabs —

@@ -320,23 +320,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  /// The top "+" menu: log, add category, add subcategory.
-  void _onAdd(String value) {
-    final repo = _repo;
-    if (repo == null) return;
-    switch (value) {
-      case 'log':
-        _push(LogScreen(repo: repo));
-        break;
-      case 'category':
-        _openCategories();
-        break;
-      case 'subcategory':
-        _openCategories(subMode: true);
-        break;
-    }
-  }
-
   Future<void> _openCategories({bool subMode = false}) async {
     final repo = _repo;
     if (repo == null) return;
@@ -418,15 +401,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: repo == null
             ? null
             : [
-                PopupMenuButton<String>(
+                IconButton(
                   icon: const Icon(Icons.add),
-                  tooltip: 'Add',
-                  onSelected: _onAdd,
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'log', child: Text('Log activity')),
-                    PopupMenuItem(value: 'category', child: Text('Add category')),
-                    PopupMenuItem(value: 'subcategory', child: Text('Add subcategory')),
-                  ],
+                  tooltip: 'Log activity',
+                  onPressed: () => _push(LogScreen(repo: repo)),
                 ),
                 IconButton(
                   icon: const Icon(Icons.timer_outlined),
@@ -494,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('${summary.user} · ${summary.totalEvents} events logged',
+        Text('${summary.totalEvents} events logged',
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Center(
