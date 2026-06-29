@@ -110,8 +110,10 @@ class LocalStore {
       final time = ts == null ? '' : '${two(ts.hour)}:${two(ts.minute)}';
       final secs = (e['seconds'] ?? 0) as int;
       final dur = secs > 0 ? formatHms(secs) : '—';
+      final sub = (e['subcategory'] ?? '').toString();
+      final activity = sub.isEmpty ? cell(e['name']) : '${cell(e['name'])} (${cell(sub)})';
       sb.writeln('| $date | $time | ${cell(labels[e['axis_key']] ?? e['axis_key'])} '
-          '| ${cell(e['name'])} | $dur | ${e['exp']} |');
+          '| $activity | $dur | ${e['exp']} |');
     }
 
     const enc = JsonEncoder.withIndent('  ');

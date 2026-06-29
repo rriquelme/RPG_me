@@ -32,28 +32,6 @@ class OctagonView {
   });
 }
 
-/// A small at-a-glance summary of one category, for the Log screen dashboard.
-class CategoryStats {
-  final String axisKey;
-  final String label;
-  final int weekCount;
-  final int weekSeconds;
-  final int totalCount;
-  final int totalSeconds;
-  final int level;
-  final DateTime? lastLogged;
-  const CategoryStats({
-    required this.axisKey,
-    required this.label,
-    required this.weekCount,
-    required this.weekSeconds,
-    required this.totalCount,
-    required this.totalSeconds,
-    required this.level,
-    required this.lastLogged,
-  });
-}
-
 /// Local-first data layer. All reads/writes hit the on-device event log so the
 /// app works fully offline; [sync] optionally pushes unsynced events to the
 /// backend when one is configured.
@@ -94,6 +72,18 @@ class Repository {
     await _store.saveAxes(_axes);
   }
 
+  /// Append a subcategory to a category and persist (used by the inline
+  /// "create subcategory" flow on the Log screen). No-op on duplicate names.
+  Future<void> addSubcategory(String axisKey, SubcategoryDef sub) async {
+    final i = _axes.indexWhere((a) => a.key == axisKey);
+    if (i < 0) return;
+    final axis = _axes[i];
+    if (axis.subcategories.any((s) => s.name == sub.name)) return;
+    _axes = List.of(_axes)
+      ..[i] = axis.copyWith(subcategories: [...axis.subcategories, sub]);
+    await _store.saveAxes(_axes);
+  }
+
   // --- reads (async to fit the existing FutureBuilder screens) ------------
   Future<List<AxisStat>> axes() async => _engine.octagon();
   Future<Summary> summary() async => _engine.summary(user: settings.user);
@@ -107,6 +97,8 @@ class Repository {
     String note = '',
     int seconds = 0,
     DateTime? at,
+    String subcategory = '',
+    bool hidden = false,
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -114,6 +106,8 @@ class Repository {
       id: Event.newId(),
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
+      subcategory: subcategory.trim(),
+      hidden: hidden,
       exp: resolvedExp,
       note: note,
       timestamp: at ?? DateTime.now(),
@@ -124,10 +118,15 @@ class Repository {
   }
 
   Future<Map<String, int>> secondsByAxis() async => _engine.secondsByAxis();
-  Future<Map<String, int>> dailyCounts({String? axisKey}) async =>
-      _engine.dailyCounts(axisKey: axisKey);
-  Future<Map<String, int>> dailySeconds({String? axisKey}) async =>
-      _engine.dailySeconds(axisKey: axisKey);
+  Future<Map<String, int>> dailyCounts({String? axisKey, String? subcategory}) async =>
+      _engine.dailyCounts(axisKey: axisKey, subcategory: subcategory);
+  Future<Map<String, int>> dailySeconds({String? axisKey, String? subcategory}) async =>
+      _engine.dailySeconds(axisKey: axisKey, subcategory: subcategory);
+
+  /// Per-day breakdown of an axis's subcategories (counts/seconds + the
+  /// dominant subcategory each day), for the "all subcategories" heatmap.
+  Future<SubcatDays> subcategoryDays(String axisKey) async =>
+      _engine.subcategoryDays(axisKey);
 
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.
@@ -150,6 +149,8 @@ class Repository {
     int seconds = 0,
     DateTime? at,
     String note = '',
+    String subcategory = '',
+    bool hidden = false,
   }) async {
     final i = _events.indexWhere((e) => e.id == id);
     if (i < 0) return;
@@ -159,6 +160,8 @@ class Repository {
       id: id,
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
+      subcategory: subcategory.trim(),
+      hidden: hidden,
       exp: exp,
       note: note,
       timestamp: at ?? _events[i].timestamp,
@@ -184,43 +187,10 @@ class Repository {
     if (days < 1) days = 1;
     return OctagonView(
       axes: _axes,
-      seconds: _engine.timeTotals(since: since).byAxis,
-      exp: _engine.expByAxis(since: since),
-      counts: _engine.countByAxis(since: since),
+      seconds: _engine.timeTotals(since: since, excludeHidden: true).byAxis,
+      exp: _engine.expByAxis(since: since, excludeHidden: true),
+      counts: _engine.countByAxis(since: since, excludeHidden: true),
       days: days,
-    );
-  }
-
-  // --- per-category dashboard (for the Log screen) ------------------------
-  /// At-a-glance stats for one category: this week (since the configured first
-  /// day of week) and all-time counts/time, current level, and last-logged date.
-  CategoryStats categoryStats(String axisKey) {
-    final weekStart = OctagonPeriod.since('this_week',
-        firstDayOfWeek: settings.firstDayOfWeek);
-    final engine = _engine;
-    final weekCounts = engine.countByAxis(since: weekStart);
-    final weekSecs = engine.timeTotals(since: weekStart).byAxis;
-    final totalCounts = engine.countByAxis();
-    final totalSecs = engine.timeTotals().byAxis;
-    final totalExp = engine.expByAxis();
-    final label = _axes
-        .firstWhere((a) => a.key == axisKey,
-            orElse: () => AxisDef(axisKey, axisKey, '', '#4C72B0'))
-        .label;
-    DateTime? last;
-    for (final e in _events) {
-      if (e.axisKey != axisKey) continue;
-      if (last == null || e.timestamp.isAfter(last)) last = e.timestamp;
-    }
-    return CategoryStats(
-      axisKey: axisKey,
-      label: label,
-      weekCount: weekCounts[axisKey] ?? 0,
-      weekSeconds: weekSecs[axisKey] ?? 0,
-      totalCount: totalCounts[axisKey] ?? 0,
-      totalSeconds: totalSecs[axisKey] ?? 0,
-      level: levelForExp(totalExp[axisKey] ?? 0),
-      lastLogged: last,
     );
   }
 

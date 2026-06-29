@@ -3,13 +3,14 @@ import 'package:rpg_me/local/event.dart';
 import 'package:rpg_me/local/local_engine.dart';
 
 Event ev(String axis, String name,
-    {int exp = 10, int seconds = 0, DateTime? at}) {
+    {int exp = 10, int seconds = 0, DateTime? at, bool hidden = false}) {
   return Event(
     id: Event.newId(),
     axisKey: axis,
     name: name,
     exp: exp,
     seconds: seconds,
+    hidden: hidden,
     timestamp: at ?? DateTime.now(),
   );
 }
@@ -75,6 +76,103 @@ void main() {
     expect(back.key, 'study');
     expect(back.label, 'Study');
     expect(back.colorHex, '#4C72B0');
+    // Defaults: visible, no subcategories.
+    expect(back.hidden, false);
+    expect(back.subcategories, isEmpty);
+  });
+
+  test('AxisDef round-trips hidden flag and subcategories with colours', () {
+    const a = AxisDef('health', 'Health', '', '#DD5555', hidden: true,
+        subcategories: [
+          SubcategoryDef('gym', '#55883B'),
+          SubcategoryDef('run'),
+        ]);
+    final back = AxisDef.fromJson(a.toJson());
+    expect(back.hidden, true);
+    expect(back.subcategoryNames, ['gym', 'run']);
+    expect(back.subcategoryByName('gym')!.colorHex, '#55883B');
+    expect(back.subcategoryByName('run')!.colorHex, ''); // inherits axis colour
+    // Legacy: subcategories stored as plain strings still parse.
+    final legacy = AxisDef.fromJson({
+      'key': 'mind',
+      'label': 'Mind',
+      'color': '#4C72B0',
+      'subcategories': ['read', 'study'],
+    });
+    expect(legacy.subcategoryNames, ['read', 'study']);
+    expect(legacy.hidden, false);
+    // And a config with no subcategories key at all.
+    final none =
+        AxisDef.fromJson({'key': 'x', 'label': 'X', 'color': '#000000'});
+    expect(none.subcategories, isEmpty);
+  });
+
+  test('hidden subcategories are excluded from the octagon and breakdown', () {
+    final day = DateTime(2026, 6, 1, 9);
+    Event e(String id, String sub, {int secs = 0}) => Event(
+        id: id, axisKey: 'health', name: 'x', exp: 10, timestamp: day,
+        seconds: secs, subcategory: sub);
+    final axes = const [
+      AxisDef('health', 'Health', '', '#DD5555', subcategories: [
+        SubcategoryDef('gym'),
+        SubcategoryDef('junk', '', true), // hidden
+      ]),
+      AxisDef('mind', 'Mind', '', '#4C72B0'),
+      AxisDef('career', 'Career', '', '#55883B'),
+    ];
+    final eng = LocalEngine([
+      e('1', 'gym', secs: 600),
+      e('2', 'junk', secs: 600), // hidden subcategory
+      e('3', ''), // untagged, still counts
+    ], axes);
+    // Octagon excludes the hidden subcategory's event.
+    expect(eng.countByAxis(excludeHidden: true)['health'], 2);
+    expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 600);
+    // The default (heatmap/history) still includes everything.
+    expect(eng.countByAxis()['health'], 3);
+    // The "all subcategories" breakdown drops the hidden one.
+    final sd = eng.subcategoryDays('health');
+    expect(sd.counts[LocalEngine.dayKey(day)], 1); // only 'gym'
+    expect(sd.dominant[LocalEngine.dayKey(day)], 'gym');
+  });
+
+  test('subcategoryDays finds the dominant subcategory per day', () {
+    final day = DateTime(2026, 6, 1, 9);
+    Event e(String id, String name, String sub) => Event(
+        id: id, axisKey: 'health', name: name, exp: 10, timestamp: day, subcategory: sub);
+    final eng = LocalEngine([
+      e('1', 'a', 'gym'),
+      e('2', 'b', 'gym'),
+      e('3', 'c', 'run'),
+      Event(id: '4', axisKey: 'health', name: 'd', exp: 10, timestamp: day), // untagged
+    ]);
+    final sd = eng.subcategoryDays('health');
+    final k = LocalEngine.dayKey(day);
+    expect(sd.counts[k], 3); // only tagged events count
+    expect(sd.dominant[k], 'gym');
+  });
+
+  test('hidden events are excluded from the octagon but counted elsewhere', () {
+    final eng = LocalEngine([
+      ev('health', 'gym', exp: 60, seconds: 3600),
+      ev('health', 'secret', exp: 30, seconds: 1800, hidden: true),
+    ]);
+    // Octagon-feeding aggregates skip the hidden event...
+    expect(eng.countByAxis(excludeHidden: true)['health'], 1);
+    expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 3600);
+    expect(eng.expByAxis(excludeHidden: true)['health'], 60);
+    // ...but the default (heatmap/time/history) still includes it.
+    expect(eng.countByAxis()['health'], 2);
+    expect(eng.timeTotals().byAxis['health'], 5400);
+    expect(eng.dailyCounts(axisKey: 'health').values.first, 2);
+  });
+
+  test('Event round-trips the hidden flag', () {
+    final e = ev('health', 'secret', hidden: true);
+    final back = Event.fromStorageJson(e.toStorageJson());
+    expect(back.hidden, true);
+    final visible = Event.fromStorageJson(ev('health', 'gym').toStorageJson());
+    expect(visible.hidden, false);
   });
 
   test('secondsByAxis and daily aggregates for octagon/heatmap', () {

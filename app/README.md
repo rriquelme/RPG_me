@@ -26,6 +26,63 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.20
+
+- **Create a subcategory while logging** — the Subcategory dropdown is now
+  always shown, and its last item is **“Create new…”**. It opens a quick
+  name + colour dialog, adds the subcategory to that category, and
+  auto-selects it. Works even when the category had none yet.
+- **Unsaved-changes prompt** — leaving *Edit categories* (in either the
+  Categories or Subcategories tab) with unsaved edits now asks **Save /
+  Discard / Cancel**.
+
+## What's new in 0.19
+
+- **Hide a whole subcategory from the charts** — in *Edit categories →
+  Subcategories*, each subcategory has a 👁 eye toggle. Hiding one keeps it
+  loggable but drops its entries from the octagon and the subcategory
+  dashboard. You can now hide at three levels: a **category**, a
+  **subcategory**, or a **single log entry**.
+
+## What's new in 0.18
+
+- **Subcategories now have their own editor and colours** — *Edit categories*
+  has a **Categories / Subcategories** toggle at the top. In Subcategories mode,
+  pick a category and rename, recolour, add, remove, or reorder its
+  subcategories, just like categories. A blank colour inherits the category's.
+- **Coloured subcategory dashboard** — on the Log screen, the subcategory
+  activity chart uses each subcategory's colour.
+- **"All subcategories" by default** — instead of an empty prompt, the
+  subcategory chart now defaults to **all subcategories**, colouring each day by
+  the subcategory you logged most that day. Pick a specific one to drill in.
+
+## What's new in 0.17
+
+- **"Hide this entry from the chart"** — the Log screen tick now hides just
+  **that one entry** from the octagon (it's still logged and counted in the
+  heatmap, history, and time totals). It no longer changes the whole category.
+  Hiding a whole category still lives in *Edit categories* (the 👁 eye).
+- **Separate subcategory activity dashboard** — when "View dashboard on log
+  creation" is on, the category's activity heatmap shows on top, and (if the
+  category has subcategories) a **second chart** below shows the picked
+  subcategory's activity. It defaults to none until you choose a subcategory.
+
+## What's new in 0.16
+
+- **Activity dashboard on the Log screen** — with "View dashboard on log
+  creation" enabled, the top of the Log screen shows the **activity heatmap**
+  of the selected category, refreshing live as you change the selection.
+
+## What's new in 0.15
+
+- **Hide a category from the chart** — in *Edit categories*, tap the 👁 eye to
+  hide an axis from the octagon. It stays fully loggable; it just isn't drawn.
+  The Log screen has the same **"Hide from chart"** tick for the selected
+  category.
+- **Subcategories** — give any category optional subcategories (none by
+  default), managed from the same *Edit categories* menu. When logging a
+  category that has them, pick a subcategory (optional).
+
 ## What's new in 0.14
 
 - **Tap a category on the octagon** to open a new log with that category
