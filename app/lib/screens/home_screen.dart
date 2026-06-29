@@ -30,7 +30,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Repository? _repo;
   Summary? _summary;
   OctagonView? _octView;
-  bool _syncing = false;
   OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
 
   // Period navigation. [_periodKey] is the dropdown selection; [_navOffset]
@@ -253,10 +252,8 @@ class _HomeScreenState extends State<HomeScreen> {
       await _openSettings();
       if (!repo.settings.isConfigured) return;
     }
-    setState(() => _syncing = true);
     final result = await repo.sync();
     if (!mounted) return;
-    setState(() => _syncing = false);
     final msg = result.ok
         ? (result.pushed == 0 ? 'Already up to date.' : 'Synced ${result.pushed} event(s).')
         : 'Sync failed: ${result.error}';
@@ -324,8 +321,8 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'time':
         _push(TimeScreen(repo: repo));
         break;
-      case 'categories':
-        _push(AxesConfigScreen(repo: repo));
+      case 'sync':
+        _sync();
         break;
       case 'export':
         _exportLogs();
@@ -333,10 +330,33 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'import':
         _importLogs();
         break;
-      case 'settings':
-        _openSettings();
+    }
+  }
+
+  /// The top "+" menu: log, add category, add subcategory.
+  void _onAdd(String value) {
+    final repo = _repo;
+    if (repo == null) return;
+    switch (value) {
+      case 'log':
+        _push(LogScreen(repo: repo));
+        break;
+      case 'category':
+        _openCategories();
+        break;
+      case 'subcategory':
+        _openCategories(subMode: true);
         break;
     }
+  }
+
+  Future<void> _openCategories({bool subMode = false}) async {
+    final repo = _repo;
+    if (repo == null) return;
+    await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) =>
+            AxesConfigScreen(repo: repo, startInSubcategories: subMode)));
+    _reload();
   }
 
   double _rawValue(OctagonView v, String key) {
@@ -406,13 +426,32 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final repo = _repo;
-    final unsynced = repo?.unsyncedCount ?? 0;
     return Scaffold(
       appBar: AppBar(
         title: const Text('RPG_me'),
         actions: repo == null
             ? null
             : [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.add),
+                  tooltip: 'Add',
+                  onSelected: _onAdd,
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'log', child: Text('Log activity')),
+                    PopupMenuItem(value: 'category', child: Text('Add category')),
+                    PopupMenuItem(value: 'subcategory', child: Text('Add subcategory')),
+                  ],
+                ),
+                IconButton(
+                  icon: const Icon(Icons.category_outlined),
+                  tooltip: 'Edit categories',
+                  onPressed: () => _openCategories(),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: 'Activity',
+                  onPressed: () => _push(HeatmapScreen(repo: repo)),
+                ),
                 IconButton(
                   icon: const Icon(Icons.timer_outlined),
                   tooltip: 'Timers',
@@ -423,39 +462,66 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
                 IconButton(
-                  icon: const Icon(Icons.calendar_month),
-                  tooltip: 'Activity heatmap',
-                  onPressed: () => _push(HeatmapScreen(repo: repo)),
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
+                  onPressed: _openSettings,
                 ),
-                _SyncButton(syncing: _syncing, unsynced: unsynced, onPressed: _sync),
                 PopupMenuButton<String>(
                   onSelected: _onMenu,
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: 'logged', child: Text('Logged activities')),
                     PopupMenuItem(value: 'time', child: Text('Time tracked')),
-                    PopupMenuItem(value: 'categories', child: Text('Edit categories')),
+                    PopupMenuItem(value: 'sync', child: Text('Sync')),
                     PopupMenuItem(value: 'export', child: Text('Export logs (.md)')),
                     PopupMenuItem(value: 'import', child: Text('Import logs (.md)')),
-                    PopupMenuItem(value: 'settings', child: Text('Settings')),
                   ],
                 ),
               ],
       ),
-      floatingActionButton: repo == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _push(LogScreen(repo: repo)),
-              icon: const Icon(Icons.add),
-              label: const Text('Log'),
-            ),
+      floatingActionButton: repo == null ? null : _bottomButtons(repo),
       body: repo == null
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                if (!repo.settings.isConfigured) _OfflineBanner(unsynced: unsynced),
-                Expanded(child: _buildBody(repo)),
-              ],
-            ),
+          : _buildBody(repo),
+    );
+  }
+
+  /// The bottom quick-action buttons, per the Settings switches (Log on by
+  /// default). Returns null when none are enabled.
+  Widget? _bottomButtons(Repository repo) {
+    final s = repo.settings;
+    final buttons = <Widget>[
+      if (s.showAddSubcategoryButton)
+        FloatingActionButton.extended(
+          heroTag: 'fab_sub',
+          onPressed: () => _openCategories(subMode: true),
+          icon: const Icon(Icons.add),
+          label: const Text('Subcategory'),
+        ),
+      if (s.showAddCategoryButton)
+        FloatingActionButton.extended(
+          heroTag: 'fab_cat',
+          onPressed: () => _openCategories(),
+          icon: const Icon(Icons.add),
+          label: const Text('Category'),
+        ),
+      if (s.showLogButton)
+        FloatingActionButton.extended(
+          heroTag: 'fab_log',
+          onPressed: () => _push(LogScreen(repo: repo)),
+          icon: const Icon(Icons.add),
+          label: const Text('Log'),
+        ),
+    ];
+    if (buttons.isEmpty) return null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (var i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(height: 10),
+          buttons[i],
+        ],
+      ],
     );
   }
 
@@ -482,7 +548,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const ButtonSegment(
                     value: OctagonMetric.frequency, label: Text('Frequency')),
                 const ButtonSegment(
-                    value: OctagonMetric.hours, label: Text('Hours')),
+                    value: OctagonMetric.hours, label: Text('Time')),
                 if (repo.settings.trackNumber)
                   const ButtonSegment(
                       value: OctagonMetric.number, label: Text('Number')),
@@ -582,52 +648,4 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   String _fmtDay(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
-}
-
-class _SyncButton extends StatelessWidget {
-  final bool syncing;
-  final int unsynced;
-  final VoidCallback onPressed;
-  const _SyncButton({required this.syncing, required this.unsynced, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    final icon = syncing
-        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-        : const Icon(Icons.sync);
-    return IconButton(
-      tooltip: unsynced > 0 ? 'Sync ($unsynced pending)' : 'Sync',
-      onPressed: syncing ? null : onPressed,
-      icon: unsynced > 0 ? Badge(label: Text('$unsynced'), child: icon) : icon,
-    );
-  }
-}
-
-class _OfflineBanner extends StatelessWidget {
-  final int unsynced;
-  const _OfflineBanner({required this.unsynced});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      width: double.infinity,
-      color: scheme.secondaryContainer,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Icon(Icons.cloud_off, size: 18, color: scheme.onSecondaryContainer),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              unsynced > 0
-                  ? 'Offline · $unsynced event(s) saved on this device'
-                  : 'Offline · data saved on this device. Add an API URL to sync.',
-              style: TextStyle(color: scheme.onSecondaryContainer, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

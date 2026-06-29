@@ -9,12 +9,12 @@ enum _Metric { count, time }
 /// Sentinel for the "All subcategories (inc. hidden)" dropdown item.
 const String _kAllIncHidden = '__all_inc_hidden__';
 
-/// GitHub-contributions-style calendars: a **global** grid for all activity,
-/// one filtered **by category**, and a third **by subcategory** (for the
-/// selected category — all subcategories coloured by each day's dominant, or a
-/// single picked one). Defaults to **frequency** (how many times per day); a
-/// single log is a light cell, more are darker. Tap any day to see its
-/// frequency and time spent. A toggle switches the shading to time spent.
+/// GitHub-contributions-style calendars. A **Category** picker (defaulting to
+/// **All**) drives the main grid; when a specific category has subcategories a
+/// second **by subcategory** grid appears (all subcategories coloured by each
+/// day's dominant, or a single picked one). Defaults to **frequency**; a single
+/// log is a light cell, more are darker. Tap any day to see its frequency and
+/// time spent. A toggle switches the shading to time spent.
 class HeatmapScreen extends StatefulWidget {
   final Repository repo;
   const HeatmapScreen({super.key, required this.repo});
@@ -25,10 +25,8 @@ class HeatmapScreen extends StatefulWidget {
 
 class _HeatmapScreenState extends State<HeatmapScreen> {
   _Metric _metric = _Metric.count; // frequency is primary
-  Map<String, int> _globalCounts = {};
-  Map<String, int> _globalSeconds = {};
   List<AxisDef> _axes = [];
-  String? _axisKey;
+  String? _axisKey; // null = All (every category)
   Map<String, int> _filteredCounts = {};
   Map<String, int> _filteredSeconds = {};
   // "By subcategory" section (3rd chart), for the selected category.
@@ -57,22 +55,17 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 
   Future<void> _loadAll() async {
-    final counts = await widget.repo.dailyCounts();
-    final seconds = await widget.repo.dailySeconds();
-    final axes = widget.repo.axesConfig;
     setState(() {
-      _globalCounts = counts;
-      _globalSeconds = seconds;
-      _axes = axes;
-      _axisKey = axes.isNotEmpty ? axes.first.key : null;
+      _axes = widget.repo.axesConfig;
+      _axisKey = null; // start on "All"
     });
     await _loadFiltered();
     await _loadSub();
     if (mounted) setState(() => _loading = false);
   }
 
+  /// Daily counts/seconds for the selected category, or all (when _axisKey null).
   Future<void> _loadFiltered() async {
-    if (_axisKey == null) return;
     final counts = await widget.repo.dailyCounts(axisKey: _axisKey);
     final seconds = await widget.repo.dailySeconds(axisKey: _axisKey);
     if (mounted) {
@@ -152,34 +145,24 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             onSelectionChanged: (s) => setState(() => _metric = s.first),
           ),
           const SizedBox(height: 20),
-          Text('All activity', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          HeatGrid(
-            counts: _globalCounts,
-            seconds: _globalSeconds,
-            isTime: isTime,
-            baseColor: const Color(0xFF2E9E4F),
-            firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-          ),
-          const SizedBox(height: 28),
-          const Divider(),
-          const SizedBox(height: 12),
           Row(
             children: [
-              Text('By category', style: Theme.of(context).textTheme.titleMedium),
+              Text('Category', style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
-              DropdownButton<String>(
+              DropdownButton<String?>(
                 value: _axisKey,
-                items: _axes
-                    .map((a) => DropdownMenuItem(
-                          value: a.key,
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
-                            const SizedBox(width: 8),
-                            Text(a.label),
-                          ]),
-                        ))
-                    .toList(),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('All')),
+                  ..._axes.map((a) => DropdownMenuItem<String?>(
+                        value: a.key,
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Container(
+                              width: 12, height: 12, color: colorFromHex(a.colorHex)),
+                          const SizedBox(width: 8),
+                          Text(a.label),
+                        ]),
+                      )),
+                ],
                 onChanged: (v) {
                   setState(() {
                     _axisKey = v;
@@ -197,9 +180,10 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             seconds: _filteredSeconds,
             isTime: isTime,
             baseColor: _axisKey == null
-                ? Theme.of(context).colorScheme.primary
+                ? const Color(0xFF2E9E4F)
                 : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
             firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+            showDayNumbers: widget.repo.settings.showDayNumbers,
           ),
           if (subAxis != null && subAxis.subcategories.isNotEmpty) ...[
             const SizedBox(height: 28),
@@ -254,6 +238,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                   : _subColor(subAxis, _subKey!, colorFromHex(subAxis.colorHex)),
               firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
               dayColors: _subDayColors,
+              showDayNumbers: widget.repo.settings.showDayNumbers,
             ),
           ],
         ],
@@ -278,6 +263,9 @@ class HeatGrid extends StatefulWidget {
   /// instead of [baseColor], and the gradient legend is hidden.
   final Map<String, Color>? dayColors;
 
+  /// Show the day-of-month number inside each cell.
+  final bool showDayNumbers;
+
   const HeatGrid({
     super.key,
     required this.counts,
@@ -286,6 +274,7 @@ class HeatGrid extends StatefulWidget {
     required this.baseColor,
     required this.firstDayOfWeek,
     this.dayColors,
+    this.showDayNumbers = false,
   });
 
   @override
@@ -357,16 +346,31 @@ class _HeatGridState extends State<HeatGrid> {
     final base = widget.dayColors != null
         ? (widget.dayColors![k] ?? widget.baseColor)
         : widget.baseColor;
+    final cellColor = _color(context, c, s, maxSecs, base);
     return GestureDetector(
       onTap: () => _showDay(context, date, c, s),
       child: Container(
         width: _cell,
         height: _cell,
         margin: const EdgeInsets.all(_margin),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: _color(context, c, s, maxSecs, base),
+          color: cellColor,
           borderRadius: BorderRadius.circular(3),
         ),
+        child: widget.showDayNumbers
+            ? Text(
+                '${date.day}',
+                style: TextStyle(
+                  fontSize: 8,
+                  height: 1,
+                  color: ThemeData.estimateBrightnessForColor(cellColor) ==
+                          Brightness.dark
+                      ? Colors.white
+                      : Colors.black87,
+                ),
+              )
+            : null,
       ),
     );
   }

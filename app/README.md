@@ -26,6 +26,22 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.28
+
+- **Top app bar redesign** — a **+** menu (Log activity · Add category · Add
+  subcategory), a dedicated **Edit categories** icon, and a **⚙ Settings** gear.
+  Sync moved into the ⋮ menu (its pending-count badge is gone), and the offline
+  banner is hidden.
+- **Configurable bottom buttons** — Settings → *Bottom buttons* toggles the
+  **Log / Add category / Add subcategory** quick buttons at the bottom of the
+  home screen. Only **Log** is on by default; all actions stay available from
+  the top **+** menu.
+- **Activity screen** — the separate "All activity" grid is gone; the Category
+  picker now starts on **All** (every category) and you drill in from there.
+- **Octagon** — the **Hours** toggle is now labelled **Time**.
+- **Day numbers** — Settings → *Activity* → *Show day numbers* prints the
+  day-of-month in each heatmap cell.
+
 ## What's new in 0.27
 
 - **Percentage respects Avg / day** now (like the other metrics), instead of

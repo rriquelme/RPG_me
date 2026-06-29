@@ -67,6 +67,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setLogButton(bool on) async {
+    await Settings.saveBool(Settings.kLogBtnKey, on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(showLogButton: on));
+    setState(() {});
+  }
+
+  Future<void> _setAddCategoryButton(bool on) async {
+    await Settings.saveBool(Settings.kAddCatBtnKey, on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(showAddCategoryButton: on));
+    setState(() {});
+  }
+
+  Future<void> _setAddSubcategoryButton(bool on) async {
+    await Settings.saveBool(Settings.kAddSubBtnKey, on);
+    await widget.repo.updateSettings(
+        widget.repo.settings.copyWith(showAddSubcategoryButton: on));
+    setState(() {});
+  }
+
+  Future<void> _setDayNumbers(bool on) async {
+    await Settings.saveBool(Settings.kDayNumbersKey, on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(showDayNumbers: on));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -126,6 +154,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: const Text('A 0–100% per log (averaged on the octagon).'),
             value: widget.repo.settings.trackPercentage,
             onChanged: _setTrackPercentage,
+          ),
+          const Divider(height: 40),
+          Text('Bottom buttons', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text(
+            'Which quick-action buttons show at the bottom of the home screen. '
+            'All actions are always available from the + menu at the top.',
+            style: TextStyle(fontSize: 13),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Log button'),
+            value: widget.repo.settings.showLogButton,
+            onChanged: _setLogButton,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Add category button'),
+            value: widget.repo.settings.showAddCategoryButton,
+            onChanged: _setAddCategoryButton,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Add subcategory button'),
+            value: widget.repo.settings.showAddSubcategoryButton,
+            onChanged: _setAddSubcategoryButton,
+          ),
+          const Divider(height: 40),
+          Text('Activity', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show day numbers'),
+            subtitle: const Text(
+                'Show the day of the month in each activity heatmap cell.'),
+            value: widget.repo.settings.showDayNumbers,
+            onChanged: _setDayNumbers,
           ),
           const Divider(height: 40),
           Text('API settings', style: Theme.of(context).textTheme.titleMedium),

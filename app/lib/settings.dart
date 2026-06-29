@@ -12,6 +12,10 @@ class Settings {
   static const _kShowDash = 'show_dashboard_on_log';
   static const _kTrackNumber = 'track_number';
   static const _kTrackPercentage = 'track_percentage';
+  static const _kLogBtn = 'show_log_button';
+  static const _kAddCatBtn = 'show_add_category_button';
+  static const _kAddSubBtn = 'show_add_subcategory_button';
+  static const _kDayNumbers = 'show_day_numbers';
 
   final String baseUrl;
   final String user;
@@ -21,6 +25,10 @@ class Settings {
   final bool showDashboardOnLog; // show a category dashboard atop the Log screen
   final bool trackNumber; // enable the "number" metric + log field
   final bool trackPercentage; // enable the "percentage" metric + log field
+  final bool showLogButton; // bottom +Log button
+  final bool showAddCategoryButton; // bottom +Category button
+  final bool showAddSubcategoryButton; // bottom +Subcategory button
+  final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
 
   const Settings({
     required this.baseUrl,
@@ -31,6 +39,10 @@ class Settings {
     this.showDashboardOnLog = false,
     this.trackNumber = false,
     this.trackPercentage = false,
+    this.showLogButton = true,
+    this.showAddCategoryButton = false,
+    this.showAddSubcategoryButton = false,
+    this.showDayNumbers = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -44,6 +56,10 @@ class Settings {
     bool? showDashboardOnLog,
     bool? trackNumber,
     bool? trackPercentage,
+    bool? showLogButton,
+    bool? showAddCategoryButton,
+    bool? showAddSubcategoryButton,
+    bool? showDayNumbers,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -54,6 +70,12 @@ class Settings {
         showDashboardOnLog: showDashboardOnLog ?? this.showDashboardOnLog,
         trackNumber: trackNumber ?? this.trackNumber,
         trackPercentage: trackPercentage ?? this.trackPercentage,
+        showLogButton: showLogButton ?? this.showLogButton,
+        showAddCategoryButton:
+            showAddCategoryButton ?? this.showAddCategoryButton,
+        showAddSubcategoryButton:
+            showAddSubcategoryButton ?? this.showAddSubcategoryButton,
+        showDayNumbers: showDayNumbers ?? this.showDayNumbers,
       );
 
   static Future<Settings> load() async {
@@ -67,8 +89,23 @@ class Settings {
       showDashboardOnLog: prefs.getBool(_kShowDash) ?? false,
       trackNumber: prefs.getBool(_kTrackNumber) ?? false,
       trackPercentage: prefs.getBool(_kTrackPercentage) ?? false,
+      showLogButton: prefs.getBool(_kLogBtn) ?? true,
+      showAddCategoryButton: prefs.getBool(_kAddCatBtn) ?? false,
+      showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
+      showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
     );
   }
+
+  static Future<void> saveBool(String key, bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(key, value);
+  }
+
+  // Keys for the boolean toggles, exposed for saveBool.
+  static const kLogBtnKey = _kLogBtn;
+  static const kAddCatBtnKey = _kAddCatBtn;
+  static const kAddSubBtnKey = _kAddSubBtn;
+  static const kDayNumbersKey = _kDayNumbers;
 
   static Future<void> save(String baseUrl, String user) async {
     final prefs = await SharedPreferences.getInstance();
