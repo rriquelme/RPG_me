@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.13
+
+- **Heatmap fixed** — it's now a proper **month calendar**: every day sits in
+  its real weekday row, with blank cells padding the partial first/last weeks,
+  so months separate naturally (no more "every month starts Monday"). Each
+  month has its name on top; it auto-scrolls to the current month.
+
 ## What's new in 0.12
 
 - **Edit a running timer's category** (and name) — keeps the elapsed time.

@@ -135,17 +135,10 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 }
 
-class _MonthGroup {
-  final int year;
-  final int month;
-  final List<DateTime> weekStarts = [];
-  _MonthGroup(this.year, this.month);
-  int get key => year * 100 + month;
-}
-
-/// A ~26-week heatmap grid, split into months (an empty column between months,
-/// with the month name on top), with weekday labels on the left ordered by the
-/// configured first day of the week. Auto-scrolls to the most recent week.
+/// A month-by-month heatmap calendar: each day sits in its real weekday row,
+/// with blank cells before the 1st and after the last day so months separate
+/// naturally (no fake "every month starts Monday"). Weekday labels follow the
+/// configured first day of week; auto-scrolls to the most recent month.
 class HeatGrid extends StatefulWidget {
   final Map<String, int> counts;
   final Map<String, int> seconds;
@@ -167,11 +160,11 @@ class HeatGrid extends StatefulWidget {
 }
 
 class _HeatGridState extends State<HeatGrid> {
-  static const _weeks = 26;
+  static const _monthsBack = 6; // months shown, including the current one
   static const _cell = 15.0;
   static const _margin = 2.0;
   static const _row = _cell + 2 * _margin;
-  static const _weekW = _cell + 2 * _margin; // one week column width
+  static const _gap = 10.0; // space between month blocks
   static const _monthH = 18.0;
 
   static const _letters = {1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F', 6: 'S', 7: 'S'};
@@ -221,27 +214,63 @@ class _HeatGridState extends State<HeatGrid> {
     );
   }
 
-  Widget _weekColumn(BuildContext context, DateTime weekStart, DateTime today, int maxSecs) {
+  Widget _blankCell() =>
+      Container(width: _cell, height: _cell, margin: const EdgeInsets.all(_margin));
+
+  Widget _dayCell(BuildContext context, DateTime date, int maxSecs) {
+    final k = LocalEngine.dayKey(date);
+    final c = widget.counts[k] ?? 0;
+    final s = widget.seconds[k] ?? 0;
+    return GestureDetector(
+      onTap: () => _showDay(context, date, c, s),
+      child: Container(
+        width: _cell,
+        height: _cell,
+        margin: const EdgeInsets.all(_margin),
+        decoration: BoxDecoration(
+          color: _color(context, c, s, maxSecs),
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+    );
+  }
+
+  /// One month as a calendar: columns are weeks, each day in its weekday row,
+  /// with blanks padding the first and last weeks.
+  Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
+      int maxSecs, TextStyle? labelStyle) {
+    final fdow = widget.firstDayOfWeek;
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final r1 = (DateTime(year, month, 1).weekday - fdow + 7) % 7; // row of the 1st
+    final cols = ((r1 + daysInMonth) / 7).ceil();
+
+    final columns = List.generate(cols, (c) {
+      return Column(
+        children: List.generate(7, (r) {
+          final dayNum = c * 7 + r - r1 + 1;
+          if (dayNum < 1 || dayNum > daysInMonth) return _blankCell();
+          final date = DateTime(year, month, dayNum);
+          if (date.isAfter(today)) return _blankCell();
+          return _dayCell(context, date, maxSecs);
+        }),
+      );
+    });
+
     return Column(
-      children: List.generate(7, (d) {
-        final date = weekStart.add(Duration(days: d));
-        final future = date.isAfter(today);
-        final k = LocalEngine.dayKey(date);
-        final c = future ? 0 : (widget.counts[k] ?? 0);
-        final s = future ? 0 : (widget.seconds[k] ?? 0);
-        return GestureDetector(
-          onTap: future ? null : () => _showDay(context, date, c, s),
-          child: Container(
-            width: _cell,
-            height: _cell,
-            margin: const EdgeInsets.all(_margin),
-            decoration: BoxDecoration(
-              color: future ? Colors.transparent : _color(context, c, s, maxSecs),
-              borderRadius: BorderRadius.circular(3),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: _monthH,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: Text(
+              month == DateTime.january ? '${_months[month - 1]} $year' : _months[month - 1],
+              style: labelStyle?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-        );
-      }),
+        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: columns),
+      ],
     );
   }
 
@@ -250,55 +279,20 @@ class _HeatGridState extends State<HeatGrid> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final fdow = widget.firstDayOfWeek;
-    final currentWeekStart =
-        today.subtract(Duration(days: (today.weekday - fdow + 7) % 7));
-    final start = currentWeekStart.subtract(const Duration(days: (_weeks - 1) * 7));
 
-    // Week start dates, oldest -> newest.
-    final weekStarts =
-        List.generate(_weeks, (w) => start.add(Duration(days: w * 7)));
-
-    // Group weeks into months by the month of the week's middle day (so a week
-    // straddling a boundary lands in the month most of it belongs to).
-    final groups = <_MonthGroup>[];
-    for (final ws in weekStarts) {
-      final mid = ws.add(const Duration(days: 3));
-      if (groups.isEmpty || groups.last.key != mid.year * 100 + mid.month) {
-        groups.add(_MonthGroup(mid.year, mid.month));
-      }
-      groups.last.weekStarts.add(ws);
-    }
+    // Last N months, including the current one (oldest -> newest).
+    final months = List.generate(
+        _monthsBack, (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
 
     final maxSecs = widget.seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
     final maxCount = widget.counts.values.fold<int>(0, (a, b) => a > b ? a : b);
     final labelStyle = Theme.of(context).textTheme.bodySmall;
 
-    // Right-hand scrollable area: month blocks separated by an empty week.
-    final monthBlocks = <Widget>[];
-    for (var gi = 0; gi < groups.length; gi++) {
-      final g = groups[gi];
-      monthBlocks.add(Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: _monthH,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: Text(
-                g.month == DateTime.january ? '${_months[g.month - 1]} ${g.year}' : _months[g.month - 1],
-                style: labelStyle?.copyWith(fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [for (final ws in g.weekStarts) _weekColumn(context, ws, today, maxSecs)],
-          ),
-        ],
-      ));
-      if (gi != groups.length - 1) {
-        monthBlocks.add(const SizedBox(width: _weekW)); // empty week between months
-      }
+    final blocks = <Widget>[];
+    for (var mi = 0; mi < months.length; mi++) {
+      final fom = months[mi];
+      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxSecs, labelStyle));
+      if (mi != months.length - 1) blocks.add(const SizedBox(width: _gap));
     }
 
     return Column(
@@ -327,7 +321,7 @@ class _HeatGridState extends State<HeatGrid> {
               child: SingleChildScrollView(
                 controller: _sc,
                 scrollDirection: Axis.horizontal,
-                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: monthBlocks),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: blocks),
               ),
             ),
           ],
