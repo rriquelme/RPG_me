@@ -1,7 +1,7 @@
 name: rpg_me
 description: "RPG your life — an 8-axis octagon tracker for your routines."
 publish_to: "none"
-version: 0.32.0+32
+version: 0.33.0+33
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -31,5 +31,5 @@ flutter_launcher_icons:
   android: true
   ios: false
   image_path: "assets/icon/app_icon.png"
-  adaptive_icon_background: "#1E2233"
+  adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"

@@ -26,10 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.33
+
+- **App icon polish** — white background to match the in-app chart (light grey
+  grid, light-blue fill, coloured vertices).
+
 ## What's new in 0.32
 
-- **New app icon** — the octagon chart itself (coloured vertices on a slate
-  rounded tile), generated via `flutter_launcher_icons`.
+- **New app icon** — the octagon chart itself, generated via
+  `flutter_launcher_icons`.
 - **Optional in-place updates** — the release workflow can now sign every build
   with a stable key, so installing a new version updates over the old one and
   keeps your data (no uninstall). It activates when you add the
