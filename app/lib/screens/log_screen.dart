@@ -9,7 +9,16 @@ import '../repository.dart';
 class LogScreen extends StatefulWidget {
   final Repository repo;
   final Event? existing;
-  const LogScreen({super.key, required this.repo, this.existing});
+
+  /// Pre-select this category when opening a fresh log (e.g. from tapping an
+  /// octagon axis). Ignored when editing an [existing] entry.
+  final String? initialAxisKey;
+  const LogScreen({
+    super.key,
+    required this.repo,
+    this.existing,
+    this.initialAxisKey,
+  });
 
   @override
   State<LogScreen> createState() => _LogScreenState();
@@ -40,8 +49,11 @@ class _LogScreenState extends State<LogScreen> {
       if (mounted) {
         setState(() {
           _axes = a;
+          final initial = widget.initialAxisKey;
           if (ex != null && a.any((x) => x.key == ex.axisKey)) {
             _selectedAxis = ex.axisKey;
+          } else if (initial != null && a.any((x) => x.key == initial)) {
+            _selectedAxis = initial;
           } else {
             _selectedAxis = a.isNotEmpty ? a.first.key : null;
           }
@@ -132,6 +144,13 @@ class _LogScreenState extends State<LogScreen> {
           key: _formKey,
           child: ListView(
             children: [
+              if (!editing &&
+                  widget.repo.settings.showDashboardOnLog &&
+                  _selectedAxis != null) ...[
+                _CategoryDashboard(
+                    stats: widget.repo.categoryStats(_selectedAxis!)),
+                const SizedBox(height: 20),
+              ],
               DropdownButtonFormField<String>(
                 value: _selectedAxis,
                 decoration: const InputDecoration(labelText: 'Category'),
@@ -197,6 +216,100 @@ class _LogScreenState extends State<LogScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// A compact dashboard card summarising the selected category: this week and
+/// all-time counts/time, current level, and when it was last logged. Shown at
+/// the top of the Log screen when "View dashboard on log creation" is enabled.
+class _CategoryDashboard extends StatelessWidget {
+  final CategoryStats stats;
+  const _CategoryDashboard({required this.stats});
+
+  String _lastLabel() {
+    final last = stats.lastLogged;
+    if (last == null) return 'never';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(last.year, last.month, last.day);
+    final diff = today.difference(day).inDays;
+    if (diff <= 0) return 'today';
+    if (diff == 1) return 'yesterday';
+    if (diff < 7) return '$diff days ago';
+    return '${last.year}-${last.month.toString().padLeft(2, '0')}-${last.day.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(stats.label, style: theme.textTheme.titleMedium),
+                const Spacer(),
+                Chip(
+                  label: Text('Lv ${stats.level}'),
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _Stat(
+                    label: 'This week',
+                    value: '${stats.weekCount}×',
+                    sub: stats.weekSeconds > 0 ? formatHms(stats.weekSeconds) : '—',
+                  ),
+                ),
+                Expanded(
+                  child: _Stat(
+                    label: 'All time',
+                    value: '${stats.totalCount}×',
+                    sub: stats.totalSeconds > 0 ? formatHms(stats.totalSeconds) : '—',
+                  ),
+                ),
+                Expanded(
+                  child: _Stat(label: 'Last', value: _lastLabel(), sub: ''),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final String value;
+  final String sub;
+  const _Stat({required this.label, required this.value, required this.sub});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.outline)),
+        const SizedBox(height: 2),
+        Text(value, style: theme.textTheme.titleMedium),
+        if (sub.isNotEmpty)
+          Text(sub, style: theme.textTheme.bodySmall),
+      ],
     );
   }
 }
