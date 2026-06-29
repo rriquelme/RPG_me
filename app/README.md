@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.26
+
+- **Reworked octagon period picker + always-on navigation.** The dropdown is now
+  **Today · This week · This month · This year · All time · Custom: single day ·
+  Custom: range of days** (the rolling "last N days / year to date" options were
+  removed). The **‹ ›** arrows are always shown and step the window by its own
+  unit — day by day for *Today*, week by week for *This week*, then month, year,
+  or by the custom day/range you picked. (Disabled for *All time*.)
+
 ## What's new in 0.25
 
 - **Optional Number & Percentage metrics** (off by default) — Settings →

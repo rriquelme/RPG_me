@@ -33,11 +33,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _syncing = false;
   OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
 
-  // Custom time window (both null = use the period dropdown). Inclusive day
-  // midnights; a single day has start == end.
+  // Period navigation. [_periodKey] is the dropdown selection; [_navOffset]
+  // steps the window back (negative) / forward by one unit of that period.
+  // Custom day/range use [_customStart]/[_customEnd] as the offset-0 base.
+  String _periodKey = 'this_week';
+  int _navOffset = 0;
   DateTime? _customStart;
   DateTime? _customEnd;
-  bool get _customActive => _customStart != null && _customEnd != null;
+
+  static const _simplePeriods = {
+    'today', 'this_week', 'this_month', 'this_year', 'all'
+  };
 
   @override
   void initState() {
@@ -48,6 +54,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _boot() async {
     final repo = await Repository.create();
     _repo = repo;
+    final saved = repo.settings.period;
+    _periodKey = _simplePeriods.contains(saved) ? saved : 'this_week';
     _reload();
   }
 
@@ -59,15 +67,16 @@ class _HomeScreenState extends State<HomeScreen> {
       _metric = OctagonMetric.frequency;
     }
     final summary = await repo.summary();
-    final OctagonView view;
-    if (_customActive) {
-      view = repo.octagonView(_customStart,
-          until: _customEnd!.add(const Duration(days: 1)));
-    } else {
-      final since = OctagonPeriod.since(repo.settings.period,
-          firstDayOfWeek: repo.settings.firstDayOfWeek);
-      view = repo.octagonView(since);
+    final w = _windowFor(_navOffset);
+    // Don't query into the future: cap the end at the end of today.
+    DateTime? end = w.end;
+    if (end != null) {
+      final now = DateTime.now();
+      final todayExcl =
+          DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+      if (end.isAfter(todayExcl)) end = todayExcl;
     }
+    final view = repo.octagonView(w.start, until: end);
     if (mounted) {
       setState(() {
         _summary = summary;
@@ -76,70 +85,110 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _pickCustom() async {
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (_) => SimpleDialog(
-        title: const Text('Custom time'),
-        children: [
-          SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 'day'),
-              child: const Text('A single day')),
-          SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, 'range'),
-              child: const Text('A range of days')),
-        ],
-      ),
-    );
-    if (choice == null || !mounted) return;
+  /// The [start, end) window and a label for the current period at [offset]
+  /// (0 = current/base). 'all' has null bounds (no navigation).
+  ({DateTime? start, DateTime? end, String label}) _windowFor(int offset) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    DateTime d0(DateTime d) => DateTime(d.year, d.month, d.day);
-    if (choice == 'day') {
-      final d = await showDatePicker(
-        context: context,
-        initialDate: _customStart ?? today,
-        firstDate: DateTime(2020),
-        lastDate: today,
-      );
-      if (d == null) return;
-      setState(() {
-        _customStart = d0(d);
-        _customEnd = d0(d);
-      });
-    } else {
-      final r = await showDateRangePicker(
-        context: context,
-        firstDate: DateTime(2020),
-        lastDate: today,
-        initialDateRange: _customActive
-            ? DateTimeRange(start: _customStart!, end: _customEnd!)
-            : null,
-      );
-      if (r == null) return;
-      setState(() {
-        _customStart = d0(r.start);
-        _customEnd = d0(r.end);
-      });
+    final fdow = _repo?.settings.firstDayOfWeek ?? DateTime.monday;
+    switch (_periodKey) {
+      case 'today':
+        final d = today.add(Duration(days: offset));
+        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDay(d));
+      case 'this_week':
+        final w0 = today.subtract(Duration(days: (today.weekday - fdow + 7) % 7));
+        final ws = w0.add(Duration(days: offset * 7));
+        return (
+          start: ws,
+          end: ws.add(const Duration(days: 7)),
+          label: '${_fmtDay(ws)} – ${_fmtDay(ws.add(const Duration(days: 6)))}'
+        );
+      case 'this_month':
+        final m = DateTime(now.year, now.month + offset, 1);
+        return (
+          start: m,
+          end: DateTime(m.year, m.month + 1, 1),
+          label: '${_months[m.month - 1]} ${m.year}'
+        );
+      case 'this_year':
+        return (
+          start: DateTime(now.year + offset, 1, 1),
+          end: DateTime(now.year + offset + 1, 1, 1),
+          label: '${now.year + offset}'
+        );
+      case 'custom_day':
+        final base = _customStart ?? today;
+        final d = base.add(Duration(days: offset));
+        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDay(d));
+      case 'custom_range':
+        final cs = _customStart ?? today, ce = _customEnd ?? today;
+        final span = ce.difference(cs).inDays + 1;
+        final start = cs.add(Duration(days: offset * span));
+        final endIncl = ce.add(Duration(days: offset * span));
+        return (
+          start: start,
+          end: endIncl.add(const Duration(days: 1)),
+          label: '${_fmtDay(start)} – ${_fmtDay(endIncl)}'
+        );
+      case 'all':
+      default:
+        return (start: null, end: null, label: 'All time');
     }
+  }
+
+  bool get _navigable => _periodKey != 'all';
+
+  /// Forward is allowed only while the next window doesn't start in the future.
+  bool get _canForward {
+    if (!_navigable) return false;
+    final next = _windowFor(_navOffset + 1).start;
+    if (next == null) return false;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return !next.isAfter(today);
+  }
+
+  void _shift(int dir) {
+    setState(() => _navOffset += dir);
     _reload();
   }
 
-  /// Shift the custom window by its own length (‹ previous / › next).
-  void _shiftCustom(int dir) {
-    if (!_customActive) return;
-    final span = _customEnd!.difference(_customStart!).inDays + 1;
+  Future<void> _pickCustomDay() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = await showDatePicker(
+      context: context,
+      initialDate: _customStart ?? today,
+      firstDate: DateTime(2020),
+      lastDate: today,
+    );
+    if (d == null) return;
     setState(() {
-      _customStart = _customStart!.add(Duration(days: dir * span));
-      _customEnd = _customEnd!.add(Duration(days: dir * span));
+      _periodKey = 'custom_day';
+      _customStart = DateTime(d.year, d.month, d.day);
+      _customEnd = _customStart;
+      _navOffset = 0;
     });
     _reload();
   }
 
-  void _clearCustom() {
+  Future<void> _pickCustomRange() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final r = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: today,
+      initialDateRange: (_customStart != null && _customEnd != null)
+          ? DateTimeRange(start: _customStart!, end: _customEnd!)
+          : null,
+    );
+    if (r == null) return;
     setState(() {
-      _customStart = null;
-      _customEnd = null;
+      _periodKey = 'custom_range';
+      _customStart = DateTime(r.start.year, r.start.month, r.start.day);
+      _customEnd = DateTime(r.end.year, r.end.month, r.end.day);
+      _navOffset = 0;
     });
     _reload();
   }
@@ -156,13 +205,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  Future<void> _setPeriod(String period) async {
+  Future<void> _setPeriod(String key) async {
+    if (key == 'custom_day') return _pickCustomDay();
+    if (key == 'custom_range') return _pickCustomRange();
     final repo = _repo!;
-    // Choosing a preset period leaves custom mode.
-    _customStart = null;
-    _customEnd = null;
-    await repo.updateSettings(repo.settings.copyWith(period: period));
-    await Settings.saveView(period, repo.settings.averagePerDay);
+    setState(() {
+      _periodKey = key;
+      _navOffset = 0;
+    });
+    await repo.updateSettings(repo.settings.copyWith(period: key));
+    await Settings.saveView(key, repo.settings.averagePerDay);
     _reload();
   }
 
@@ -432,11 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
           spacing: 8,
           children: [
             DropdownButton<String>(
-              value: repo.settings.period,
-              // The preset period is ignored while a custom window is active.
-              style: _customActive
-                  ? TextStyle(color: Theme.of(context).disabledColor)
-                  : null,
+              value: _periodKey,
               items: OctagonPeriod.all
                   .map((p) => DropdownMenuItem(value: p.key, child: Text(p.label)))
                   .toList(),
@@ -447,16 +495,6 @@ class _HomeScreenState extends State<HomeScreen> {
               selected: average,
               onSelected: _setAverage,
             ),
-            FilterChip(
-              avatar: Icon(Icons.date_range,
-                  size: 18,
-                  color: _customActive
-                      ? Theme.of(context).colorScheme.onSecondaryContainer
-                      : null),
-              label: const Text('Custom'),
-              selected: _customActive,
-              onSelected: (_) => _pickCustom(),
-            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -465,8 +503,8 @@ class _HomeScreenState extends State<HomeScreen> {
           formatValue: (v) => _formatValue(v, average),
           onTapAxis: _logForCategory,
         ),
-        const SizedBox(height: 16),
-        if (_customActive) _customNav(context),
+        const SizedBox(height: 12),
+        _periodNav(context),
         const SizedBox(height: 8),
         Center(
           child: OutlinedButton.icon(
@@ -479,37 +517,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// The ‹ label › navigation row shown under the chart in custom mode.
-  Widget _customNav(BuildContext context) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final canForward = _customEnd!.isBefore(today);
+  /// The ‹ label › navigation row under the chart. The arrows step the window
+  /// by one unit of the selected period (disabled for All time).
+  Widget _periodNav(BuildContext context) {
+    final label = _windowFor(_navOffset).label;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         IconButton(
           icon: const Icon(Icons.chevron_left),
           tooltip: 'Previous',
-          onPressed: () => _shiftCustom(-1),
+          onPressed: _navigable ? () => _shift(-1) : null,
         ),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(_customLabel(), style: Theme.of(context).textTheme.titleSmall),
-            InkWell(
-              onTap: _clearCustom,
-              child: Text('Clear',
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: Theme.of(context).colorScheme.primary)),
-            ),
-          ],
+        Flexible(
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleSmall,
+          ),
         ),
         IconButton(
           icon: const Icon(Icons.chevron_right),
           tooltip: 'Next',
-          onPressed: canForward ? () => _shiftCustom(1) : null,
+          onPressed: _canForward ? () => _shift(1) : null,
         ),
       ],
     );
@@ -521,12 +551,6 @@ class _HomeScreenState extends State<HomeScreen> {
   ];
 
   String _fmtDay(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
-
-  String _customLabel() {
-    final s = _customStart!, e = _customEnd!;
-    if (s == e) return _fmtDay(s);
-    return '${_fmtDay(s)} – ${_fmtDay(e)}';
-  }
 }
 
 class _SyncButton extends StatelessWidget {

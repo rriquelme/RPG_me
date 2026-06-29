@@ -114,12 +114,11 @@ class OctagonPeriod {
   static const all = [
     OctagonPeriod('today', 'Today'),
     OctagonPeriod('this_week', 'This week'),
-    OctagonPeriod('last_7', 'Last 7 days'),
     OctagonPeriod('this_month', 'This month'),
-    OctagonPeriod('last_30', 'Last 30 days'),
-    OctagonPeriod('ytd', 'Year to date'),
-    OctagonPeriod('last_365', 'Last year'),
+    OctagonPeriod('this_year', 'This year'),
     OctagonPeriod('all', 'All time'),
+    OctagonPeriod('custom_day', 'Custom: single day'),
+    OctagonPeriod('custom_range', 'Custom: range of days'),
   ];
 
   /// Inclusive start datetime for a period key, or null for all-time.
@@ -137,12 +136,8 @@ class OctagonPeriod {
         return today.subtract(const Duration(days: 6));
       case 'this_month':
         return DateTime(now.year, now.month, 1);
-      case 'last_30':
-        return today.subtract(const Duration(days: 29));
-      case 'ytd':
+      case 'this_year':
         return DateTime(now.year, 1, 1);
-      case 'last_365':
-        return today.subtract(const Duration(days: 364));
       case 'all':
       default:
         return null;
