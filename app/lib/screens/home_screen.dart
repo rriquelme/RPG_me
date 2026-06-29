@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart';
 
 import '../local/local_engine.dart';
 import '../models.dart';
@@ -250,8 +249,20 @@ class _HomeScreenState extends State<HomeScreen> {
     if (repo == null) return;
     try {
       final file = await repo.exportFile();
-      await Share.shareXFiles([XFile(file.path, mimeType: 'text/markdown')],
-          subject: 'RPG_me logs', text: 'My RPG_me logs (Markdown).');
+      final bytes = await file.readAsBytes();
+      // Android asks where to save (the system folder picker doubles as the
+      // storage permission for that location); the file is written there.
+      final savedPath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save RPG_me logs',
+        fileName: 'rpg_me_data.md',
+        type: FileType.any,
+        bytes: bytes,
+      );
+      if (!mounted) return;
+      if (savedPath != null) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));

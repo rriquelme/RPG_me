@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.34
+
+- **Categories range is now 1–15** (was 3–10). With 1–2 categories the octagon
+  shows a note instead of a polygon; it draws normally from 3 up.
+- **Export saves to a folder** — *Export logs* now opens Android's **Save to…**
+  dialog so you can store `rpg_me_data.md` in a folder on the device (e.g.
+  Downloads), instead of opening the share sheet. The folder you pick is the
+  storage location Android grants; pick once and it remembers it next time.
+
 ## What's new in 0.33
 
 - **App icon polish** — white background to match the in-app chart (light grey
@@ -345,10 +354,11 @@ every release with one stable key:
 - **Activity heatmap** — a GitHub-squares calendar of the last ~26 weeks,
   toggleable between time-spent and frequency.
 
-## Editable axes (4–10)
+## Editable axes (1–15)
 
 Tap **🎛 Edit axes** to rename, recolour, add, remove, or **reorder** the
-octagon's axes — anywhere from 4 to 10 of them. Drag the ☰ handle to change
+octagon's axes — anywhere from 1 to 15 of them (it draws as a polygon at 3+).
+Drag the ☰ handle to change
 their order, which is the order they appear around the octagon. The config is
 stored on-device (defaults to the classic 8 on first run) and the octagon, log
 picker, and timer categories all follow it. When you sync, the app pushes your
