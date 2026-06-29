@@ -26,13 +26,22 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.17
+
+- **"Hide this entry from the chart"** — the Log screen tick now hides just
+  **that one entry** from the octagon (it's still logged and counted in the
+  heatmap, history, and time totals). It no longer changes the whole category.
+  Hiding a whole category still lives in *Edit categories* (the 👁 eye).
+- **Separate subcategory activity dashboard** — when "View dashboard on log
+  creation" is on, the category's activity heatmap shows on top, and (if the
+  category has subcategories) a **second chart** below shows the picked
+  subcategory's activity. It defaults to none until you choose a subcategory.
+
 ## What's new in 0.16
 
 - **Activity dashboard on the Log screen** — with "View dashboard on log
-  creation" enabled, the top of the Log screen now shows the **activity
-  heatmap** of the selected category. Pick a subcategory and it switches to
-  that subcategory's heatmap; changing the category or subcategory refreshes
-  the dashboard live.
+  creation" enabled, the top of the Log screen shows the **activity heatmap**
+  of the selected category, refreshing live as you change the selection.
 
 ## What's new in 0.15
 

@@ -3,13 +3,14 @@ import 'package:rpg_me/local/event.dart';
 import 'package:rpg_me/local/local_engine.dart';
 
 Event ev(String axis, String name,
-    {int exp = 10, int seconds = 0, DateTime? at}) {
+    {int exp = 10, int seconds = 0, DateTime? at, bool hidden = false}) {
   return Event(
     id: Event.newId(),
     axisKey: axis,
     name: name,
     exp: exp,
     seconds: seconds,
+    hidden: hidden,
     timestamp: at ?? DateTime.now(),
   );
 }
@@ -91,6 +92,29 @@ void main() {
         {'key': 'mind', 'label': 'Mind', 'color': '#4C72B0'});
     expect(legacy.hidden, false);
     expect(legacy.subcategories, isEmpty);
+  });
+
+  test('hidden events are excluded from the octagon but counted elsewhere', () {
+    final eng = LocalEngine([
+      ev('health', 'gym', exp: 60, seconds: 3600),
+      ev('health', 'secret', exp: 30, seconds: 1800, hidden: true),
+    ]);
+    // Octagon-feeding aggregates skip the hidden event...
+    expect(eng.countByAxis(excludeHidden: true)['health'], 1);
+    expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 3600);
+    expect(eng.expByAxis(excludeHidden: true)['health'], 60);
+    // ...but the default (heatmap/time/history) still includes it.
+    expect(eng.countByAxis()['health'], 2);
+    expect(eng.timeTotals().byAxis['health'], 5400);
+    expect(eng.dailyCounts(axisKey: 'health').values.first, 2);
+  });
+
+  test('Event round-trips the hidden flag', () {
+    final e = ev('health', 'secret', hidden: true);
+    final back = Event.fromStorageJson(e.toStorageJson());
+    expect(back.hidden, true);
+    final visible = Event.fromStorageJson(ev('health', 'gym').toStorageJson());
+    expect(visible.hidden, false);
   });
 
   test('secondsByAxis and daily aggregates for octagon/heatmap', () {

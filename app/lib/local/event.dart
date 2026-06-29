@@ -9,6 +9,10 @@ class Event {
 
   /// Optional subcategory within [axisKey] (empty if none).
   final String subcategory;
+
+  /// When true, this entry is excluded from the octagon (axis graph) — it is
+  /// still logged and counted everywhere else.
+  final bool hidden;
   final int exp;
   final String note;
   final DateTime timestamp;
@@ -22,6 +26,7 @@ class Event {
     required this.exp,
     required this.timestamp,
     this.subcategory = '',
+    this.hidden = false,
     this.note = '',
     this.seconds = 0,
     this.synced = false,
@@ -33,6 +38,7 @@ class Event {
         'axis_key': axisKey,
         'name': name,
         if (subcategory.isNotEmpty) 'subcategory': subcategory,
+        if (hidden) 'hidden': true,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),
@@ -45,6 +51,7 @@ class Event {
         axisKey: j['axis_key'] as String,
         name: j['name'] as String,
         subcategory: (j['subcategory'] ?? '') as String,
+        hidden: (j['hidden'] ?? false) as bool,
         exp: (j['exp'] ?? 0) as int,
         note: (j['note'] ?? '') as String,
         timestamp: DateTime.parse(j['timestamp'] as String),
@@ -58,6 +65,7 @@ class Event {
         'axis': axisKey,
         'name': name,
         if (subcategory.isNotEmpty) 'subcategory': subcategory,
+        if (hidden) 'hidden': true,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),

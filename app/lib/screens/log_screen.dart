@@ -35,13 +35,16 @@ class _LogScreenState extends State<LogScreen> {
   int _hours = 0;
   int _minutes = 0;
   DateTime _when = DateTime.now();
+  bool _hidden = false; // hide THIS entry from the octagon (axis graph)
   bool _submitting = false;
   String? _error;
 
-  // Activity heatmap (shown at the top when the setting is on), reflecting the
-  // currently selected category and subcategory.
-  Map<String, int> _heatCounts = {};
-  Map<String, int> _heatSeconds = {};
+  // Activity heatmaps shown at the top when the setting is on: one for the
+  // whole category, and (when a subcategory is picked) one for that subcategory.
+  Map<String, int> _catCounts = {};
+  Map<String, int> _catSeconds = {};
+  Map<String, int> _subCounts = {};
+  Map<String, int> _subSeconds = {};
 
   @override
   void initState() {
@@ -52,6 +55,7 @@ class _LogScreenState extends State<LogScreen> {
       _hours = ex.seconds ~/ 3600;
       _minutes = (ex.seconds % 3600) ~/ 60;
       _when = ex.timestamp;
+      _hidden = ex.hidden;
     }
     final a = widget.repo.axesConfig;
     _axes = a;
@@ -79,18 +83,27 @@ class _LogScreenState extends State<LogScreen> {
     return null;
   }
 
-  /// Refresh the activity heatmap for the current category/subcategory. Called
-  /// on open and whenever the selection changes (the "last click" wins).
+  /// Refresh both activity heatmaps for the current selection. The category
+  /// chart always shows the whole category; the subcategory chart reflects the
+  /// picked subcategory (empty until one is chosen). The "last click" wins.
   Future<void> _loadActivity() async {
     final key = _selectedAxis;
     if (key == null) return;
-    final sub = _selectedSub; // null = whole category
-    final counts = await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
-    final seconds = await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
+    final cat = await widget.repo.dailyCounts(axisKey: key);
+    final catS = await widget.repo.dailySeconds(axisKey: key);
+    final sub = _selectedSub;
+    final subC = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
+    final subS = sub == null
+        ? <String, int>{}
+        : await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
     if (mounted) {
       setState(() {
-        _heatCounts = counts;
-        _heatSeconds = seconds;
+        _catCounts = cat;
+        _catSeconds = catS;
+        _subCounts = subC;
+        _subSeconds = subS;
       });
     }
   }
@@ -141,6 +154,7 @@ class _LogScreenState extends State<LogScreen> {
           at: _when,
           note: ex.note,
           subcategory: sub,
+          hidden: _hidden,
         );
       } else {
         await widget.repo.log(
@@ -149,6 +163,7 @@ class _LogScreenState extends State<LogScreen> {
           seconds: _seconds,
           at: _when,
           subcategory: sub,
+          hidden: _hidden,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -158,13 +173,6 @@ class _LogScreenState extends State<LogScreen> {
         _submitting = false;
       });
     }
-  }
-
-  Future<void> _toggleHidden(bool hidden) async {
-    final key = _selectedAxis;
-    if (key == null) return;
-    await widget.repo.setAxisHidden(key, hidden);
-    if (mounted) setState(() => _axes = widget.repo.axesConfig);
   }
 
   @override
@@ -190,16 +198,32 @@ class _LogScreenState extends State<LogScreen> {
           child: ListView(
             children: [
               if (showDash && axis != null) ...[
+                // Dashboard 1: the whole category's activity.
                 _ActivityCard(
-                  title: _selectedSub == null
-                      ? 'Activity · ${axis.label}'
-                      : 'Activity · ${axis.label} › $_selectedSub',
-                  counts: _heatCounts,
-                  seconds: _heatSeconds,
+                  title: 'Activity · ${axis.label}',
+                  counts: _catCounts,
+                  seconds: _catSeconds,
                   baseColor: colorFromHex(axis.colorHex),
                   firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-                  selectionKey: '$_selectedAxis/$_selectedSub',
+                  selectionKey: 'cat/$_selectedAxis',
                 ),
+                // Dashboard 2 (the "3rd"): only when the category has
+                // subcategories — the selected subcategory's activity. By
+                // default no subcategory is picked, so it prompts to choose one.
+                if (axis.subcategories.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  if (_selectedSub == null)
+                    _ActivityPlaceholder(label: axis.label)
+                  else
+                    _ActivityCard(
+                      title: 'Activity · ${axis.label} › $_selectedSub',
+                      counts: _subCounts,
+                      seconds: _subSeconds,
+                      baseColor: colorFromHex(axis.colorHex),
+                      firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+                      selectionKey: 'sub/$_selectedAxis/$_selectedSub',
+                    ),
+                ],
                 const SizedBox(height: 20),
               ],
               DropdownButtonFormField<String>(
@@ -232,17 +256,18 @@ class _LogScreenState extends State<LogScreen> {
                   _loadActivity(); // last click refreshes the dashboard
                 },
               ),
-              // Quick "hide from chart" tick for the selected category.
-              if (axis != null)
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  dense: true,
-                  title: const Text('Hide from chart'),
-                  subtitle: const Text('Still logged, just not drawn on the octagon.'),
-                  value: axis.hidden,
-                  onChanged: _submitting ? null : (v) => _toggleHidden(v ?? false),
-                ),
+              // Per-entry tick: keep THIS log out of the octagon (axis graph).
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                dense: true,
+                title: const Text('Hide this entry from the chart'),
+                subtitle: const Text(
+                    "It's still logged; it just won't count on the octagon."),
+                value: _hidden,
+                onChanged:
+                    _submitting ? null : (v) => setState(() => _hidden = v ?? false),
+              ),
               // Subcategory picker (only when the category has subcategories).
               if (axis != null && axis.subcategories.isNotEmpty) ...[
                 const SizedBox(height: 4),
@@ -355,6 +380,38 @@ class _ActivityCard extends StatelessWidget {
               isTime: false,
               baseColor: baseColor,
               firstDayOfWeek: firstDayOfWeek,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Placeholder for the subcategory activity dashboard before a subcategory is
+/// picked (it defaults to none).
+class _ActivityPlaceholder extends StatelessWidget {
+  final String label;
+  const _ActivityPlaceholder({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Icon(Icons.account_tree_outlined,
+                size: 18, color: theme.colorScheme.outline),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Pick a $label subcategory below to see its activity.',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(color: theme.colorScheme.outline),
+              ),
             ),
           ],
         ),

@@ -72,14 +72,6 @@ class Repository {
     await _store.saveAxes(_axes);
   }
 
-  /// Toggle a category's "hidden from chart" flag (it stays loggable).
-  Future<void> setAxisHidden(String key, bool hidden) async {
-    final i = _axes.indexWhere((a) => a.key == key);
-    if (i < 0) return;
-    _axes = List.of(_axes)..[i] = _axes[i].copyWith(hidden: hidden);
-    await _store.saveAxes(_axes);
-  }
-
   // --- reads (async to fit the existing FutureBuilder screens) ------------
   Future<List<AxisStat>> axes() async => _engine.octagon();
   Future<Summary> summary() async => _engine.summary(user: settings.user);
@@ -94,6 +86,7 @@ class Repository {
     int seconds = 0,
     DateTime? at,
     String subcategory = '',
+    bool hidden = false,
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -102,6 +95,7 @@ class Repository {
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
+      hidden: hidden,
       exp: resolvedExp,
       note: note,
       timestamp: at ?? DateTime.now(),
@@ -139,6 +133,7 @@ class Repository {
     DateTime? at,
     String note = '',
     String subcategory = '',
+    bool hidden = false,
   }) async {
     final i = _events.indexWhere((e) => e.id == id);
     if (i < 0) return;
@@ -149,6 +144,7 @@ class Repository {
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
+      hidden: hidden,
       exp: exp,
       note: note,
       timestamp: at ?? _events[i].timestamp,
@@ -174,9 +170,9 @@ class Repository {
     if (days < 1) days = 1;
     return OctagonView(
       axes: _axes,
-      seconds: _engine.timeTotals(since: since).byAxis,
-      exp: _engine.expByAxis(since: since),
-      counts: _engine.countByAxis(since: since),
+      seconds: _engine.timeTotals(since: since, excludeHidden: true).byAxis,
+      exp: _engine.expByAxis(since: since, excludeHidden: true),
+      counts: _engine.countByAxis(since: since, excludeHidden: true),
       days: days,
     );
   }

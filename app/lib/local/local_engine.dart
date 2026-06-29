@@ -189,12 +189,13 @@ class LocalEngine {
     }
   }
 
-  TimeTotals timeTotals({DateTime? since}) {
+  TimeTotals timeTotals({DateTime? since, bool excludeHidden = false}) {
     final byActivity = <String, int>{};
     final byAxis = <String, int>{};
     var total = 0;
     for (final e in events) {
       if (e.seconds <= 0) continue;
+      if (excludeHidden && e.hidden) continue;
       if (since != null && e.timestamp.isBefore(since)) continue;
       byActivity[e.name] = (byActivity[e.name] ?? 0) + e.seconds;
       byAxis[e.axisKey] = (byAxis[e.axisKey] ?? 0) + e.seconds;
@@ -216,9 +217,10 @@ class LocalEngine {
   Map<String, int> secondsByAxis() => timeTotals().byAxis;
 
   /// Exp earned per axis, optionally within a window (period-filtered octagon).
-  Map<String, int> expByAxis({DateTime? since}) {
+  Map<String, int> expByAxis({DateTime? since, bool excludeHidden = false}) {
     final m = <String, int>{};
     for (final e in events) {
+      if (excludeHidden && e.hidden) continue;
       if (since != null && e.timestamp.isBefore(since)) continue;
       m[e.axisKey] = (m[e.axisKey] ?? 0) + e.exp;
     }
@@ -227,9 +229,10 @@ class LocalEngine {
 
   /// Number of logged events per axis, optionally within a window — this is the
   /// "frequency" metric (a duration-less tally still counts here).
-  Map<String, int> countByAxis({DateTime? since}) {
+  Map<String, int> countByAxis({DateTime? since, bool excludeHidden = false}) {
     final m = <String, int>{};
     for (final e in events) {
+      if (excludeHidden && e.hidden) continue;
       if (since != null && e.timestamp.isBefore(since)) continue;
       m[e.axisKey] = (m[e.axisKey] ?? 0) + 1;
     }
