@@ -15,6 +15,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late final TextEditingController _url;
   late final TextEditingController _user;
+  bool _syncing = false;
 
   @override
   void initState() {
@@ -38,6 +39,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('API settings saved.')));
     }
+  }
+
+  Future<void> _syncNow() async {
+    final repo = widget.repo;
+    if (!repo.settings.isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Add an API URL first, then Save API settings.')));
+      return;
+    }
+    setState(() => _syncing = true);
+    final result = await repo.sync();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    final msg = result.ok
+        ? (result.pushed == 0
+            ? 'Already up to date.'
+            : 'Synced ${result.pushed} event(s).')
+        : 'Sync failed: ${result.error}';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   Future<void> _setFirstDay(int day) async {
@@ -156,28 +176,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onChanged: _setTrackPercentage,
           ),
           const Divider(height: 40),
-          Text('Bottom buttons', style: Theme.of(context).textTheme.titleMedium),
+          Text('Add buttons', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
-          const Text(
-            'Which quick-action buttons show at the bottom of the home screen. '
-            'All actions are always available from the + menu at the top.',
-            style: TextStyle(fontSize: 13),
-          ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Log button'),
+            subtitle: const Text('Show the Log button on the home screen.'),
             value: widget.repo.settings.showLogButton,
             onChanged: _setLogButton,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Add category button'),
+            subtitle: const Text(
+                'Show it at the bottom of Edit categories (otherwise a + sits '
+                'next to Save).'),
             value: widget.repo.settings.showAddCategoryButton,
             onChanged: _setAddCategoryButton,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Add subcategory button'),
+            subtitle: const Text(
+                'Show it at the bottom of the Subcategories tab (otherwise a + '
+                'next to Save).'),
             value: widget.repo.settings.showAddSubcategoryButton,
             onChanged: _setAddSubcategoryButton,
           ),
@@ -218,12 +240,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: FilledButton(
-              onPressed: _saveApi,
-              child: const Text('Save API settings'),
-            ),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _syncing ? null : _syncNow,
+                icon: _syncing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.sync),
+                label: const Text('Sync now'),
+              ),
+              const Spacer(),
+              FilledButton(
+                onPressed: _saveApi,
+                child: const Text('Save API settings'),
+              ),
+            ],
           ),
         ],
       ),

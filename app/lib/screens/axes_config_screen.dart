@@ -277,6 +277,21 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
       appBar: AppBar(
         title: const Text('Edit categories'),
         actions: [
+          // A "+" next to Save when the bottom button for this tab is off.
+          if (_mode == _EditMode.categories &&
+              !widget.repo.settings.showAddCategoryButton)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Add category',
+              onPressed: _axes.length < kMaxAxes ? _add : null,
+            ),
+          if (_mode == _EditMode.subcategories &&
+              !widget.repo.settings.showAddSubcategoryButton)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Add subcategory',
+              onPressed: _addSub,
+            ),
           TextButton(onPressed: _saving ? null : _save, child: const Text('Save')),
         ],
       ),
@@ -303,18 +318,29 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
           Expanded(child: subMode ? _buildSubcategories() : _buildCategories()),
         ],
       ),
-      floatingActionButton: subMode
-          ? FloatingActionButton.extended(
-              onPressed: _addSub,
-              icon: const Icon(Icons.add),
-              label: const Text('Add subcategory'),
-            )
-          : FloatingActionButton.extended(
-              onPressed: _axes.length < kMaxAxes ? _add : null,
-              icon: const Icon(Icons.add),
-              label: Text(_axes.length < kMaxAxes ? 'Add category' : 'Max $kMaxAxes'),
-            ),
+      floatingActionButton: _bottomFab(subMode),
       ),
+    );
+  }
+
+  /// The bottom Add button, shown only when the matching Settings switch is on
+  /// (otherwise a "+" sits next to Save).
+  Widget? _bottomFab(bool subMode) {
+    final s = widget.repo.settings;
+    if (subMode) {
+      if (!s.showAddSubcategoryButton) return null;
+      return FloatingActionButton.extended(
+        onPressed: _addSub,
+        icon: const Icon(Icons.add),
+        label: const Text('Add subcategory'),
+      );
+    }
+    if (!s.showAddCategoryButton) return null;
+    final canAdd = _axes.length < kMaxAxes;
+    return FloatingActionButton.extended(
+      onPressed: canAdd ? _add : null,
+      icon: const Icon(Icons.add),
+      label: Text(canAdd ? 'Add category' : 'Max $kMaxAxes'),
     );
   }
 

@@ -245,22 +245,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  Future<void> _sync() async {
-    final repo = _repo;
-    if (repo == null) return;
-    if (!repo.settings.isConfigured) {
-      await _openSettings();
-      if (!repo.settings.isConfigured) return;
-    }
-    final result = await repo.sync();
-    if (!mounted) return;
-    final msg = result.ok
-        ? (result.pushed == 0 ? 'Already up to date.' : 'Synced ${result.pushed} event(s).')
-        : 'Sync failed: ${result.error}';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    _reload();
-  }
-
   Future<void> _exportLogs() async {
     final repo = _repo;
     if (repo == null) return;
@@ -315,14 +299,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final repo = _repo;
     if (repo == null) return;
     switch (value) {
+      case 'categories':
+        _openCategories();
+        break;
+      case 'settings':
+        _openSettings();
+        break;
       case 'logged':
         _push(LoggedScreen(repo: repo));
         break;
       case 'time':
         _push(TimeScreen(repo: repo));
-        break;
-      case 'sync':
-        _sync();
         break;
       case 'export':
         _exportLogs();
@@ -428,7 +415,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final repo = _repo;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('RPG_me'),
         actions: repo == null
             ? null
             : [
@@ -443,16 +429,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.category_outlined),
-                  tooltip: 'Edit categories',
-                  onPressed: () => _openCategories(),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.calendar_month),
-                  tooltip: 'Activity',
-                  onPressed: () => _push(HeatmapScreen(repo: repo)),
-                ),
-                IconButton(
                   icon: const Icon(Icons.timer_outlined),
                   tooltip: 'Timers',
                   onPressed: () async {
@@ -462,6 +438,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
                 IconButton(
+                  icon: const Icon(Icons.calendar_month),
+                  tooltip: 'Activity',
+                  onPressed: () => _push(HeatmapScreen(repo: repo)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.category_outlined),
+                  tooltip: 'Edit categories',
+                  onPressed: () => _openCategories(),
+                ),
+                IconButton(
                   icon: const Icon(Icons.settings),
                   tooltip: 'Settings',
                   onPressed: _openSettings,
@@ -469,9 +455,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 PopupMenuButton<String>(
                   onSelected: _onMenu,
                   itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'categories', child: Text('Edit categories')),
+                    PopupMenuItem(value: 'settings', child: Text('Settings')),
                     PopupMenuItem(value: 'logged', child: Text('Logged activities')),
                     PopupMenuItem(value: 'time', child: Text('Time tracked')),
-                    PopupMenuItem(value: 'sync', child: Text('Sync')),
                     PopupMenuItem(value: 'export', child: Text('Export logs (.md)')),
                     PopupMenuItem(value: 'import', child: Text('Import logs (.md)')),
                   ],
@@ -485,43 +472,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// The bottom quick-action buttons, per the Settings switches (Log on by
-  /// default). Returns null when none are enabled.
+  /// The home screen's only bottom button is Log (toggleable in Settings). The
+  /// category/subcategory buttons live on the Edit categories screen instead.
   Widget? _bottomButtons(Repository repo) {
-    final s = repo.settings;
-    final buttons = <Widget>[
-      if (s.showAddSubcategoryButton)
-        FloatingActionButton.extended(
-          heroTag: 'fab_sub',
-          onPressed: () => _openCategories(subMode: true),
-          icon: const Icon(Icons.add),
-          label: const Text('Subcategory'),
-        ),
-      if (s.showAddCategoryButton)
-        FloatingActionButton.extended(
-          heroTag: 'fab_cat',
-          onPressed: () => _openCategories(),
-          icon: const Icon(Icons.add),
-          label: const Text('Category'),
-        ),
-      if (s.showLogButton)
-        FloatingActionButton.extended(
-          heroTag: 'fab_log',
-          onPressed: () => _push(LogScreen(repo: repo)),
-          icon: const Icon(Icons.add),
-          label: const Text('Log'),
-        ),
-    ];
-    if (buttons.isEmpty) return null;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        for (var i = 0; i < buttons.length; i++) ...[
-          if (i > 0) const SizedBox(height: 10),
-          buttons[i],
-        ],
-      ],
+    if (!repo.settings.showLogButton) return null;
+    return FloatingActionButton.extended(
+      onPressed: () => _push(LogScreen(repo: repo)),
+      icon: const Icon(Icons.add),
+      label: const Text('Log'),
     );
   }
 

@@ -26,6 +26,19 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.29
+
+- **Add-category / Add-subcategory buttons moved to where they belong.** They no
+  longer appear on the home screen. Their Settings switches now control the
+  **Edit categories** screen: off → a **+** sits next to **Save**; on → the
+  **Add** button shows at the bottom of that tab. The home **Log** button is
+  unchanged.
+- **App bar tidied** — the **RPG_me** title is gone; order is now **+ · Timers ·
+  Activity · Edit categories · Settings · ⋮**, and the ⋮ menu also lists *Edit
+  categories* and *Settings* explicitly.
+- **Sync merged into Settings** — there's a **Sync now** button in Settings →
+  API settings; Sync is no longer a separate top-bar item.
+
 ## What's new in 0.28
 
 - **Top app bar redesign** — a **+** menu (Log activity · Add category · Add
