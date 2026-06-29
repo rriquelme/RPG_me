@@ -32,44 +32,6 @@ class OctagonView {
   });
 }
 
-/// Per-subcategory counts/time for the Log screen's subcategory dashboard.
-class SubcategoryStat {
-  final String label;
-  final int weekCount;
-  final int weekSeconds;
-  final int totalCount;
-  final int totalSeconds;
-  const SubcategoryStat({
-    required this.label,
-    required this.weekCount,
-    required this.weekSeconds,
-    required this.totalCount,
-    required this.totalSeconds,
-  });
-}
-
-/// A small at-a-glance summary of one category, for the Log screen dashboard.
-class CategoryStats {
-  final String axisKey;
-  final String label;
-  final int weekCount;
-  final int weekSeconds;
-  final int totalCount;
-  final int totalSeconds;
-  final int level;
-  final DateTime? lastLogged;
-  const CategoryStats({
-    required this.axisKey,
-    required this.label,
-    required this.weekCount,
-    required this.weekSeconds,
-    required this.totalCount,
-    required this.totalSeconds,
-    required this.level,
-    required this.lastLogged,
-  });
-}
-
 /// Local-first data layer. All reads/writes hit the on-device event log so the
 /// app works fully offline; [sync] optionally pushes unsynced events to the
 /// backend when one is configured.
@@ -150,10 +112,10 @@ class Repository {
   }
 
   Future<Map<String, int>> secondsByAxis() async => _engine.secondsByAxis();
-  Future<Map<String, int>> dailyCounts({String? axisKey}) async =>
-      _engine.dailyCounts(axisKey: axisKey);
-  Future<Map<String, int>> dailySeconds({String? axisKey}) async =>
-      _engine.dailySeconds(axisKey: axisKey);
+  Future<Map<String, int>> dailyCounts({String? axisKey, String? subcategory}) async =>
+      _engine.dailyCounts(axisKey: axisKey, subcategory: subcategory);
+  Future<Map<String, int>> dailySeconds({String? axisKey, String? subcategory}) async =>
+      _engine.dailySeconds(axisKey: axisKey, subcategory: subcategory);
 
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.
@@ -217,68 +179,6 @@ class Repository {
       counts: _engine.countByAxis(since: since),
       days: days,
     );
-  }
-
-  // --- per-category dashboard (for the Log screen) ------------------------
-  /// At-a-glance stats for one category: this week (since the configured first
-  /// day of week) and all-time counts/time, current level, and last-logged date.
-  CategoryStats categoryStats(String axisKey) {
-    final weekStart = OctagonPeriod.since('this_week',
-        firstDayOfWeek: settings.firstDayOfWeek);
-    final engine = _engine;
-    final weekCounts = engine.countByAxis(since: weekStart);
-    final weekSecs = engine.timeTotals(since: weekStart).byAxis;
-    final totalCounts = engine.countByAxis();
-    final totalSecs = engine.timeTotals().byAxis;
-    final totalExp = engine.expByAxis();
-    final label = _axes
-        .firstWhere((a) => a.key == axisKey,
-            orElse: () => AxisDef(axisKey, axisKey, '', '#4C72B0'))
-        .label;
-    DateTime? last;
-    for (final e in _events) {
-      if (e.axisKey != axisKey) continue;
-      if (last == null || e.timestamp.isAfter(last)) last = e.timestamp;
-    }
-    return CategoryStats(
-      axisKey: axisKey,
-      label: label,
-      weekCount: weekCounts[axisKey] ?? 0,
-      weekSeconds: weekSecs[axisKey] ?? 0,
-      totalCount: totalCounts[axisKey] ?? 0,
-      totalSeconds: totalSecs[axisKey] ?? 0,
-      level: levelForExp(totalExp[axisKey] ?? 0),
-      lastLogged: last,
-    );
-  }
-
-  /// Per-subcategory stats for a category (this week + all-time), in the order
-  /// the subcategories are configured. Empty when the category has none.
-  List<SubcategoryStat> subcategoryStats(String axisKey) {
-    final axis = _axes.firstWhere((a) => a.key == axisKey,
-        orElse: () => AxisDef(axisKey, axisKey, '', '#4C72B0'));
-    if (axis.subcategories.isEmpty) return const [];
-    final weekStart = OctagonPeriod.since('this_week',
-        firstDayOfWeek: settings.firstDayOfWeek);
-    return axis.subcategories.map((sub) {
-      var wc = 0, ws = 0, tc = 0, ts = 0;
-      for (final e in _events) {
-        if (e.axisKey != axisKey || e.subcategory != sub) continue;
-        tc += 1;
-        ts += e.seconds;
-        if (weekStart == null || !e.timestamp.isBefore(weekStart)) {
-          wc += 1;
-          ws += e.seconds;
-        }
-      }
-      return SubcategoryStat(
-        label: sub,
-        weekCount: wc,
-        weekSeconds: ws,
-        totalCount: tc,
-        totalSeconds: ts,
-      );
-    }).toList();
   }
 
   // --- timers (multiple, concurrent) --------------------------------------

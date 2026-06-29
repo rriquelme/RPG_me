@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.16
+
+- **Activity dashboard on the Log screen** — with "View dashboard on log
+  creation" enabled, the top of the Log screen now shows the **activity
+  heatmap** of the selected category. Pick a subcategory and it switches to
+  that subcategory's heatmap; changing the category or subcategory refreshes
+  the dashboard live.
+
 ## What's new in 0.15
 
 - **Hide a category from the chart** — in *Edit categories*, tap the 👁 eye to
@@ -35,9 +43,6 @@ log, so you can use it immediately with no backend. When you later deploy the
 - **Subcategories** — give any category optional subcategories (none by
   default), managed from the same *Edit categories* menu. When logging a
   category that has them, pick a subcategory (optional).
-- **Subcategory dashboard** — when "View dashboard on log creation" is on and
-  the category has subcategories, a breakdown card shows each subcategory's
-  this-week and all-time activity.
 
 ## What's new in 0.14
 

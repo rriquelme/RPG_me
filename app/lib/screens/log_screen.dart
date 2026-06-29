@@ -4,6 +4,7 @@ import '../local/event.dart';
 import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
+import 'heatmap_screen.dart' show HeatGrid;
 
 /// Log an activity: pick a category, name it, optionally record how long you
 /// spent and on which day/time. Pass [existing] to edit a logged entry instead.
@@ -37,6 +38,11 @@ class _LogScreenState extends State<LogScreen> {
   bool _submitting = false;
   String? _error;
 
+  // Activity heatmap (shown at the top when the setting is on), reflecting the
+  // currently selected category and subcategory.
+  Map<String, int> _heatCounts = {};
+  Map<String, int> _heatSeconds = {};
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +69,7 @@ class _LogScreenState extends State<LogScreen> {
         (axis?.subcategories.contains(ex.subcategory) ?? false)) {
       _selectedSub = ex.subcategory;
     }
+    if (widget.repo.settings.showDashboardOnLog) _loadActivity();
   }
 
   AxisDef? _axisFor(String? key) {
@@ -70,6 +77,22 @@ class _LogScreenState extends State<LogScreen> {
       if (a.key == key) return a;
     }
     return null;
+  }
+
+  /// Refresh the activity heatmap for the current category/subcategory. Called
+  /// on open and whenever the selection changes (the "last click" wins).
+  Future<void> _loadActivity() async {
+    final key = _selectedAxis;
+    if (key == null) return;
+    final sub = _selectedSub; // null = whole category
+    final counts = await widget.repo.dailyCounts(axisKey: key, subcategory: sub);
+    final seconds = await widget.repo.dailySeconds(axisKey: key, subcategory: sub);
+    if (mounted) {
+      setState(() {
+        _heatCounts = counts;
+        _heatSeconds = seconds;
+      });
+    }
   }
 
   int get _seconds => _hours * 3600 + _minutes * 60;
@@ -166,16 +189,17 @@ class _LogScreenState extends State<LogScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              if (showDash && _selectedAxis != null) ...[
-                _CategoryDashboard(
-                    stats: widget.repo.categoryStats(_selectedAxis!)),
-                if (axis != null && axis.subcategories.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  _SubcategoryDashboard(
-                    title: axis.label,
-                    stats: widget.repo.subcategoryStats(_selectedAxis!),
-                  ),
-                ],
+              if (showDash && axis != null) ...[
+                _ActivityCard(
+                  title: _selectedSub == null
+                      ? 'Activity · ${axis.label}'
+                      : 'Activity · ${axis.label} › $_selectedSub',
+                  counts: _heatCounts,
+                  seconds: _heatSeconds,
+                  baseColor: colorFromHex(axis.colorHex),
+                  firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+                  selectionKey: '$_selectedAxis/$_selectedSub',
+                ),
                 const SizedBox(height: 20),
               ],
               DropdownButtonFormField<String>(
@@ -200,10 +224,13 @@ class _LogScreenState extends State<LogScreen> {
                           ]),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() {
-                  _selectedAxis = v;
-                  _selectedSub = null; // subcategories are per-category
-                }),
+                onChanged: (v) {
+                  setState(() {
+                    _selectedAxis = v;
+                    _selectedSub = null; // subcategories are per-category
+                  });
+                  _loadActivity(); // last click refreshes the dashboard
+                },
               ),
               // Quick "hide from chart" tick for the selected category.
               if (axis != null)
@@ -228,7 +255,10 @@ class _LogScreenState extends State<LogScreen> {
                     ...axis.subcategories.map((s) =>
                         DropdownMenuItem<String?>(value: s, child: Text(s))),
                   ],
-                  onChanged: (v) => setState(() => _selectedSub = v),
+                  onChanged: (v) {
+                    setState(() => _selectedSub = v);
+                    _loadActivity(); // last click refreshes the dashboard
+                  },
                 ),
               ],
               const SizedBox(height: 16),
@@ -285,82 +315,25 @@ class _LogScreenState extends State<LogScreen> {
   }
 }
 
-/// A compact dashboard card summarising the selected category: this week and
-/// all-time counts/time, current level, and when it was last logged. Shown at
-/// the top of the Log screen when "View dashboard on log creation" is enabled.
-class _CategoryDashboard extends StatelessWidget {
-  final CategoryStats stats;
-  const _CategoryDashboard({required this.stats});
-
-  String _lastLabel() {
-    final last = stats.lastLogged;
-    if (last == null) return 'never';
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(last.year, last.month, last.day);
-    final diff = today.difference(day).inDays;
-    if (diff <= 0) return 'today';
-    if (diff == 1) return 'yesterday';
-    if (diff < 7) return '$diff days ago';
-    return '${last.year}-${last.month.toString().padLeft(2, '0')}-${last.day.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(stats.label, style: theme.textTheme.titleMedium),
-                const Spacer(),
-                Chip(
-                  label: Text('Lv ${stats.level}'),
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _Stat(
-                    label: 'This week',
-                    value: '${stats.weekCount}×',
-                    sub: stats.weekSeconds > 0 ? formatHms(stats.weekSeconds) : '—',
-                  ),
-                ),
-                Expanded(
-                  child: _Stat(
-                    label: 'All time',
-                    value: '${stats.totalCount}×',
-                    sub: stats.totalSeconds > 0 ? formatHms(stats.totalSeconds) : '—',
-                  ),
-                ),
-                Expanded(
-                  child: _Stat(label: 'Last', value: _lastLabel(), sub: ''),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A breakdown card listing each subcategory's this-week and all-time activity.
-/// Shown beneath the category dashboard when the category has subcategories.
-class _SubcategoryDashboard extends StatelessWidget {
+/// The activity dashboard shown at the top of the Log screen when "View
+/// dashboard on log creation" is enabled: the GitHub-style heatmap of the
+/// selected category — or, if a subcategory is chosen, of that subcategory.
+/// Rebuilds whenever the selection changes (keyed on [selectionKey]).
+class _ActivityCard extends StatelessWidget {
   final String title;
-  final List<SubcategoryStat> stats;
-  const _SubcategoryDashboard({required this.title, required this.stats});
+  final Map<String, int> counts;
+  final Map<String, int> seconds;
+  final Color baseColor;
+  final int firstDayOfWeek;
+  final String selectionKey;
+  const _ActivityCard({
+    required this.title,
+    required this.counts,
+    required this.seconds,
+    required this.baseColor,
+    required this.firstDayOfWeek,
+    required this.selectionKey,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -372,79 +345,20 @@ class _SubcategoryDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$title — subcategories', style: theme.textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                const Expanded(flex: 4, child: SizedBox()),
-                Expanded(
-                    flex: 3,
-                    child: Text('This week',
-                        textAlign: TextAlign.end,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.outline))),
-                Expanded(
-                    flex: 3,
-                    child: Text('All time',
-                        textAlign: TextAlign.end,
-                        style: theme.textTheme.bodySmall
-                            ?.copyWith(color: theme.colorScheme.outline))),
-              ],
+            Text(title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 12),
+            HeatGrid(
+              // A fresh key per selection so the grid re-scrolls to the latest.
+              key: ValueKey(selectionKey),
+              counts: counts,
+              seconds: seconds,
+              isTime: false,
+              baseColor: baseColor,
+              firstDayOfWeek: firstDayOfWeek,
             ),
-            const Divider(height: 16),
-            for (final s in stats)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    Expanded(flex: 4, child: Text(s.label)),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        _cell(s.weekCount, s.weekSeconds),
-                        textAlign: TextAlign.end,
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        _cell(s.totalCount, s.totalSeconds),
-                        textAlign: TextAlign.end,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ),
-    );
-  }
-
-  String _cell(int count, int seconds) =>
-      seconds > 0 ? '$count× · ${formatHms(seconds)}' : '$count×';
-}
-
-class _Stat extends StatelessWidget {
-  final String label;
-  final String value;
-  final String sub;
-  const _Stat({required this.label, required this.value, required this.sub});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.outline)),
-        const SizedBox(height: 2),
-        Text(value, style: theme.textTheme.titleMedium),
-        if (sub.isNotEmpty)
-          Text(sub, style: theme.textTheme.bodySmall),
-      ],
     );
   }
 }
