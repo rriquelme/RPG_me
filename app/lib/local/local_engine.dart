@@ -11,20 +11,57 @@ class AxisDef {
   final String label;
   final String description;
   final String colorHex;
-  const AxisDef(this.key, this.label, this.description, this.colorHex);
 
-  AxisDef copyWith({String? label, String? description, String? colorHex}) =>
-      AxisDef(key, label ?? this.label, description ?? this.description,
-          colorHex ?? this.colorHex);
+  /// Hidden from the octagon chart, but still selectable when logging.
+  final bool hidden;
 
-  Map<String, dynamic> toJson() =>
-      {'key': key, 'label': label, 'description': description, 'color': colorHex};
+  /// Optional subcategories (empty by default). Used for finer logging and the
+  /// per-subcategory dashboard.
+  final List<String> subcategories;
+
+  const AxisDef(
+    this.key,
+    this.label,
+    this.description,
+    this.colorHex, {
+    this.hidden = false,
+    this.subcategories = const [],
+  });
+
+  AxisDef copyWith({
+    String? label,
+    String? description,
+    String? colorHex,
+    bool? hidden,
+    List<String>? subcategories,
+  }) =>
+      AxisDef(
+        key,
+        label ?? this.label,
+        description ?? this.description,
+        colorHex ?? this.colorHex,
+        hidden: hidden ?? this.hidden,
+        subcategories: subcategories ?? this.subcategories,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'key': key,
+        'label': label,
+        'description': description,
+        'color': colorHex,
+        if (hidden) 'hidden': true,
+        if (subcategories.isNotEmpty) 'subcategories': subcategories,
+      };
 
   factory AxisDef.fromJson(Map<String, dynamic> j) => AxisDef(
         j['key'] as String,
         (j['label'] ?? j['key']) as String,
         (j['description'] ?? '') as String,
         (j['color'] ?? '#4C72B0') as String,
+        hidden: (j['hidden'] ?? false) as bool,
+        subcategories: ((j['subcategories'] ?? const []) as List)
+            .map((e) => e.toString())
+            .toList(),
       );
 }
 

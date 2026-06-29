@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../local/event.dart';
+import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
 
@@ -27,8 +28,9 @@ class LogScreen extends StatefulWidget {
 class _LogScreenState extends State<LogScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  List<AxisStat> _axes = [];
+  List<AxisDef> _axes = [];
   String? _selectedAxis;
+  String? _selectedSub; // optional subcategory within the selected category
   int _hours = 0;
   int _minutes = 0;
   DateTime _when = DateTime.now();
@@ -45,21 +47,29 @@ class _LogScreenState extends State<LogScreen> {
       _minutes = (ex.seconds % 3600) ~/ 60;
       _when = ex.timestamp;
     }
-    widget.repo.axes().then((a) {
-      if (mounted) {
-        setState(() {
-          _axes = a;
-          final initial = widget.initialAxisKey;
-          if (ex != null && a.any((x) => x.key == ex.axisKey)) {
-            _selectedAxis = ex.axisKey;
-          } else if (initial != null && a.any((x) => x.key == initial)) {
-            _selectedAxis = initial;
-          } else {
-            _selectedAxis = a.isNotEmpty ? a.first.key : null;
-          }
-        });
-      }
-    }).catchError((e) => setState(() => _error = e.toString()));
+    final a = widget.repo.axesConfig;
+    _axes = a;
+    final initial = widget.initialAxisKey;
+    if (ex != null && a.any((x) => x.key == ex.axisKey)) {
+      _selectedAxis = ex.axisKey;
+    } else if (initial != null && a.any((x) => x.key == initial)) {
+      _selectedAxis = initial;
+    } else {
+      _selectedAxis = a.isNotEmpty ? a.first.key : null;
+    }
+    final axis = _axisFor(_selectedAxis);
+    if (ex != null &&
+        ex.subcategory.isNotEmpty &&
+        (axis?.subcategories.contains(ex.subcategory) ?? false)) {
+      _selectedSub = ex.subcategory;
+    }
+  }
+
+  AxisDef? _axisFor(String? key) {
+    for (final a in _axes) {
+      if (a.key == key) return a;
+    }
+    return null;
   }
 
   int get _seconds => _hours * 3600 + _minutes * 60;
@@ -98,6 +108,7 @@ class _LogScreenState extends State<LogScreen> {
         name = axis.label.toLowerCase();
       }
       final ex = widget.existing;
+      final sub = _selectedSub ?? '';
       if (ex != null) {
         await widget.repo.updateEvent(
           ex.id,
@@ -106,6 +117,7 @@ class _LogScreenState extends State<LogScreen> {
           seconds: _seconds,
           at: _when,
           note: ex.note,
+          subcategory: sub,
         );
       } else {
         await widget.repo.log(
@@ -113,6 +125,7 @@ class _LogScreenState extends State<LogScreen> {
           name,
           seconds: _seconds,
           at: _when,
+          subcategory: sub,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -122,6 +135,13 @@ class _LogScreenState extends State<LogScreen> {
         _submitting = false;
       });
     }
+  }
+
+  Future<void> _toggleHidden(bool hidden) async {
+    final key = _selectedAxis;
+    if (key == null) return;
+    await widget.repo.setAxisHidden(key, hidden);
+    if (mounted) setState(() => _axes = widget.repo.axesConfig);
   }
 
   @override
@@ -136,6 +156,8 @@ class _LogScreenState extends State<LogScreen> {
     final whenLabel =
         '${_when.year}-${two(_when.month)}-${two(_when.day)}  ${two(_when.hour)}:${two(_when.minute)}';
     final editing = widget.existing != null;
+    final axis = _axisFor(_selectedAxis);
+    final showDash = !editing && widget.repo.settings.showDashboardOnLog;
     return Scaffold(
       appBar: AppBar(title: Text(editing ? 'Edit activity' : 'Log an activity')),
       body: Padding(
@@ -144,11 +166,16 @@ class _LogScreenState extends State<LogScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              if (!editing &&
-                  widget.repo.settings.showDashboardOnLog &&
-                  _selectedAxis != null) ...[
+              if (showDash && _selectedAxis != null) ...[
                 _CategoryDashboard(
                     stats: widget.repo.categoryStats(_selectedAxis!)),
+                if (axis != null && axis.subcategories.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _SubcategoryDashboard(
+                    title: axis.label,
+                    stats: widget.repo.subcategoryStats(_selectedAxis!),
+                  ),
+                ],
                 const SizedBox(height: 20),
               ],
               DropdownButtonFormField<String>(
@@ -158,14 +185,52 @@ class _LogScreenState extends State<LogScreen> {
                     .map((a) => DropdownMenuItem(
                           value: a.key,
                           child: Row(children: [
-                            Container(width: 12, height: 12, color: a.color),
+                            Container(
+                                width: 12,
+                                height: 12,
+                                color: colorFromHex(a.colorHex)),
                             const SizedBox(width: 8),
                             Text(a.label),
+                            if (a.hidden) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.visibility_off_outlined,
+                                  size: 14,
+                                  color: Theme.of(context).disabledColor),
+                            ],
                           ]),
                         ))
                     .toList(),
-                onChanged: (v) => setState(() => _selectedAxis = v),
+                onChanged: (v) => setState(() {
+                  _selectedAxis = v;
+                  _selectedSub = null; // subcategories are per-category
+                }),
               ),
+              // Quick "hide from chart" tick for the selected category.
+              if (axis != null)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                  title: const Text('Hide from chart'),
+                  subtitle: const Text('Still logged, just not drawn on the octagon.'),
+                  value: axis.hidden,
+                  onChanged: _submitting ? null : (v) => _toggleHidden(v ?? false),
+                ),
+              // Subcategory picker (only when the category has subcategories).
+              if (axis != null && axis.subcategories.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                DropdownButtonFormField<String?>(
+                  value: _selectedSub,
+                  decoration: const InputDecoration(labelText: 'Subcategory (optional)'),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                        value: null, child: Text('None')),
+                    ...axis.subcategories.map((s) =>
+                        DropdownMenuItem<String?>(value: s, child: Text(s))),
+                  ],
+                  onChanged: (v) => setState(() => _selectedSub = v),
+                ),
+              ],
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
@@ -288,6 +353,76 @@ class _CategoryDashboard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A breakdown card listing each subcategory's this-week and all-time activity.
+/// Shown beneath the category dashboard when the category has subcategories.
+class _SubcategoryDashboard extends StatelessWidget {
+  final String title;
+  final List<SubcategoryStat> stats;
+  const _SubcategoryDashboard({required this.title, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$title — subcategories', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Expanded(flex: 4, child: SizedBox()),
+                Expanded(
+                    flex: 3,
+                    child: Text('This week',
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline))),
+                Expanded(
+                    flex: 3,
+                    child: Text('All time',
+                        textAlign: TextAlign.end,
+                        style: theme.textTheme.bodySmall
+                            ?.copyWith(color: theme.colorScheme.outline))),
+              ],
+            ),
+            const Divider(height: 16),
+            for (final s in stats)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(flex: 4, child: Text(s.label)),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        _cell(s.weekCount, s.weekSeconds),
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        _cell(s.totalCount, s.totalSeconds),
+                        textAlign: TextAlign.end,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _cell(int count, int seconds) =>
+      seconds > 0 ? '$count× · ${formatHms(seconds)}' : '$count×';
 }
 
 class _Stat extends StatelessWidget {

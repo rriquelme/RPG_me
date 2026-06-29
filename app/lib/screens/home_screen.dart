@@ -191,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<RadarPoint> _points(OctagonView v, bool average) {
-    return v.axes.map((a) {
+    return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key);
       if (average && v.days > 0) value = value / v.days;
       return RadarPoint(
@@ -206,10 +206,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _logForCategory(String axisKey) async {
     final repo = _repo;
     if (repo == null) return;
-    final logged = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => LogScreen(repo: repo, initialAxisKey: axisKey)),
     );
-    if (logged == true) _reload();
+    // Always reload — the Log screen can also toggle a category's hidden flag.
+    _reload();
   }
 
   String _formatValue(double v, bool average) {

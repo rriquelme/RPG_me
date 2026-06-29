@@ -6,6 +6,9 @@ class Event {
   final String id;
   final String axisKey;
   final String name;
+
+  /// Optional subcategory within [axisKey] (empty if none).
+  final String subcategory;
   final int exp;
   final String note;
   final DateTime timestamp;
@@ -18,6 +21,7 @@ class Event {
     required this.name,
     required this.exp,
     required this.timestamp,
+    this.subcategory = '',
     this.note = '',
     this.seconds = 0,
     this.synced = false,
@@ -28,6 +32,7 @@ class Event {
         'id': id,
         'axis_key': axisKey,
         'name': name,
+        if (subcategory.isNotEmpty) 'subcategory': subcategory,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),
@@ -39,6 +44,7 @@ class Event {
         id: j['id'] as String,
         axisKey: j['axis_key'] as String,
         name: j['name'] as String,
+        subcategory: (j['subcategory'] ?? '') as String,
         exp: (j['exp'] ?? 0) as int,
         note: (j['note'] ?? '') as String,
         timestamp: DateTime.parse(j['timestamp'] as String),
@@ -51,6 +57,7 @@ class Event {
         'id': id,
         'axis': axisKey,
         'name': name,
+        if (subcategory.isNotEmpty) 'subcategory': subcategory,
         'exp': exp,
         'note': note,
         'timestamp': timestamp.toIso8601String(),

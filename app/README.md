@@ -26,6 +26,19 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.15
+
+- **Hide a category from the chart** — in *Edit categories*, tap the 👁 eye to
+  hide an axis from the octagon. It stays fully loggable; it just isn't drawn.
+  The Log screen has the same **"Hide from chart"** tick for the selected
+  category.
+- **Subcategories** — give any category optional subcategories (none by
+  default), managed from the same *Edit categories* menu. When logging a
+  category that has them, pick a subcategory (optional).
+- **Subcategory dashboard** — when "View dashboard on log creation" is on and
+  the category has subcategories, a breakdown card shows each subcategory's
+  this-week and all-time activity.
+
 ## What's new in 0.14
 
 - **Tap a category on the octagon** to open a new log with that category

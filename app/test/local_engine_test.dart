@@ -75,6 +75,22 @@ void main() {
     expect(back.key, 'study');
     expect(back.label, 'Study');
     expect(back.colorHex, '#4C72B0');
+    // Defaults: visible, no subcategories.
+    expect(back.hidden, false);
+    expect(back.subcategories, isEmpty);
+  });
+
+  test('AxisDef round-trips hidden flag and subcategories', () {
+    const a = AxisDef('health', 'Health', '', '#DD5555',
+        hidden: true, subcategories: ['gym', 'run', 'sleep']);
+    final back = AxisDef.fromJson(a.toJson());
+    expect(back.hidden, true);
+    expect(back.subcategories, ['gym', 'run', 'sleep']);
+    // Older configs without the keys default cleanly.
+    final legacy = AxisDef.fromJson(
+        {'key': 'mind', 'label': 'Mind', 'color': '#4C72B0'});
+    expect(legacy.hidden, false);
+    expect(legacy.subcategories, isEmpty);
   });
 
   test('secondsByAxis and daily aggregates for octagon/heatmap', () {

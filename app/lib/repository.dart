@@ -32,6 +32,22 @@ class OctagonView {
   });
 }
 
+/// Per-subcategory counts/time for the Log screen's subcategory dashboard.
+class SubcategoryStat {
+  final String label;
+  final int weekCount;
+  final int weekSeconds;
+  final int totalCount;
+  final int totalSeconds;
+  const SubcategoryStat({
+    required this.label,
+    required this.weekCount,
+    required this.weekSeconds,
+    required this.totalCount,
+    required this.totalSeconds,
+  });
+}
+
 /// A small at-a-glance summary of one category, for the Log screen dashboard.
 class CategoryStats {
   final String axisKey;
@@ -94,6 +110,14 @@ class Repository {
     await _store.saveAxes(_axes);
   }
 
+  /// Toggle a category's "hidden from chart" flag (it stays loggable).
+  Future<void> setAxisHidden(String key, bool hidden) async {
+    final i = _axes.indexWhere((a) => a.key == key);
+    if (i < 0) return;
+    _axes = List.of(_axes)..[i] = _axes[i].copyWith(hidden: hidden);
+    await _store.saveAxes(_axes);
+  }
+
   // --- reads (async to fit the existing FutureBuilder screens) ------------
   Future<List<AxisStat>> axes() async => _engine.octagon();
   Future<Summary> summary() async => _engine.summary(user: settings.user);
@@ -107,6 +131,7 @@ class Repository {
     String note = '',
     int seconds = 0,
     DateTime? at,
+    String subcategory = '',
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -114,6 +139,7 @@ class Repository {
       id: Event.newId(),
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
+      subcategory: subcategory.trim(),
       exp: resolvedExp,
       note: note,
       timestamp: at ?? DateTime.now(),
@@ -150,6 +176,7 @@ class Repository {
     int seconds = 0,
     DateTime? at,
     String note = '',
+    String subcategory = '',
   }) async {
     final i = _events.indexWhere((e) => e.id == id);
     if (i < 0) return;
@@ -159,6 +186,7 @@ class Repository {
       id: id,
       axisKey: axisKey,
       name: name.trim().toLowerCase(),
+      subcategory: subcategory.trim(),
       exp: exp,
       note: note,
       timestamp: at ?? _events[i].timestamp,
@@ -222,6 +250,35 @@ class Repository {
       level: levelForExp(totalExp[axisKey] ?? 0),
       lastLogged: last,
     );
+  }
+
+  /// Per-subcategory stats for a category (this week + all-time), in the order
+  /// the subcategories are configured. Empty when the category has none.
+  List<SubcategoryStat> subcategoryStats(String axisKey) {
+    final axis = _axes.firstWhere((a) => a.key == axisKey,
+        orElse: () => AxisDef(axisKey, axisKey, '', '#4C72B0'));
+    if (axis.subcategories.isEmpty) return const [];
+    final weekStart = OctagonPeriod.since('this_week',
+        firstDayOfWeek: settings.firstDayOfWeek);
+    return axis.subcategories.map((sub) {
+      var wc = 0, ws = 0, tc = 0, ts = 0;
+      for (final e in _events) {
+        if (e.axisKey != axisKey || e.subcategory != sub) continue;
+        tc += 1;
+        ts += e.seconds;
+        if (weekStart == null || !e.timestamp.isBefore(weekStart)) {
+          wc += 1;
+          ws += e.seconds;
+        }
+      }
+      return SubcategoryStat(
+        label: sub,
+        weekCount: wc,
+        weekSeconds: ws,
+        totalCount: tc,
+        totalSeconds: ts,
+      );
+    }).toList();
   }
 
   // --- timers (multiple, concurrent) --------------------------------------

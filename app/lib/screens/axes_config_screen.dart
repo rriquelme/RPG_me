@@ -50,6 +50,84 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
     _axes[i] = _axes[i].copyWith(label: label);
   }
 
+  void _toggleHidden(int i) {
+    setState(() => _axes[i] = _axes[i].copyWith(hidden: !_axes[i].hidden));
+  }
+
+  Future<void> _editSubcategories(int i) async {
+    final subs = List<String>.of(_axes[i].subcategories);
+    final controller = TextEditingController();
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) {
+          void add() {
+            final t = controller.text.trim();
+            if (t.isNotEmpty && !subs.contains(t)) setLocal(() => subs.add(t));
+            controller.clear();
+          }
+
+          return AlertDialog(
+            title: Text('Subcategories · ${_axes[i].label}'),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          autofocus: true,
+                          decoration: const InputDecoration(
+                            hintText: 'Add a subcategory',
+                            isDense: true,
+                          ),
+                          onSubmitted: (_) => add(),
+                        ),
+                      ),
+                      IconButton(icon: const Icon(Icons.add), onPressed: add),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (subs.isEmpty)
+                    const Text('None yet — subcategories are optional.')
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      children: [
+                        for (final s in subs)
+                          InputChip(
+                            label: Text(s),
+                            onDeleted: () => setLocal(() => subs.remove(s)),
+                          ),
+                      ],
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, subs),
+                child: const Text('Done'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    if (result != null) {
+      setState(() => _axes[i] = _axes[i].copyWith(subcategories: result));
+    }
+  }
+
   void _reorder(int oldIndex, int newIndex) {
     setState(() {
       if (newIndex > oldIndex) newIndex -= 1;
@@ -135,7 +213,9 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                 Expanded(
                   child: Text(
                     '${_axes.length} categories (allowed: $kMinAxes–$kMaxAxes). '
-                    'Tap a colour to change it; drag ☰ to reorder.',
+                    'Tap a colour to change it; drag ☰ to reorder; tap 👁 to hide '
+                    'from the chart (still loggable); tap the subcategories line '
+                    'to edit them.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
@@ -155,6 +235,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
               itemCount: _axes.length,
               itemBuilder: (context, i) {
                 final axis = _axes[i];
+                final subs = axis.subcategories;
                 return ListTile(
                   key: ValueKey(axis.key),
                   leading: GestureDetector(
@@ -164,15 +245,48 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                   ),
                   title: TextFormField(
                     initialValue: axis.label,
+                    style: axis.hidden
+                        ? TextStyle(color: Theme.of(context).disabledColor)
+                        : null,
                     decoration: const InputDecoration(
                       isDense: true,
                       border: InputBorder.none,
                     ),
                     onChanged: (v) => _rename(i, v),
                   ),
+                  subtitle: InkWell(
+                    onTap: () => _editSubcategories(i),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.account_tree_outlined, size: 14),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              subs.isEmpty
+                                  ? 'No subcategories — tap to add'
+                                  : 'Subcategories: ${subs.join(', ')}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        icon: Icon(axis.hidden
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined),
+                        tooltip: axis.hidden
+                            ? 'Hidden from chart — tap to show'
+                            : 'Shown on chart — tap to hide',
+                        onPressed: () => _toggleHidden(i),
+                      ),
                       IconButton(
                         icon: const Icon(Icons.delete_outline),
                         tooltip: canRemove ? 'Remove' : 'Minimum $kMinAxes categories',
