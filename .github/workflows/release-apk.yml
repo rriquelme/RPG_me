@@ -14,6 +14,8 @@ name: Build & Release APK
 on:
   push:
     branches:
+      - "dev"
+      - "main"
       - "claude/life-metrics-octagon-chart-lstdz1"
     tags:
       - "app-v*"
