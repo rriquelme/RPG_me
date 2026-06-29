@@ -35,7 +35,7 @@ from rpgme.store import DynamoStore
 TABLE_NAME = os.environ.get("TABLE_NAME", "rpg_me")
 DEFAULT_USER = os.environ.get("DEFAULT_USER", "me")
 
-MIN_AXES, MAX_AXES = 4, 10
+MIN_AXES, MAX_AXES = 3, 10
 
 
 def engine_for(store) -> Engine:

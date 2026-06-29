@@ -131,19 +131,19 @@ def test_put_config_sets_axes_and_get_reflects_it():
 
 
 def test_config_rejects_out_of_range_counts():
-    for n in (3, 11):
+    for n in (2, 11):
         res = handler.handle(
             _event("PUT /config", body={"axes": _axes(n)}), engine_factory=_factory
         )
         assert res["statusCode"] == 400
 
 
-def test_config_accepts_minimum_four_axes():
+def test_config_accepts_minimum_three_axes():
     res = handler.handle(
-        _event("PUT /config", body={"axes": _axes(4)}), engine_factory=_factory
+        _event("PUT /config", body={"axes": _axes(3)}), engine_factory=_factory
     )
     assert res["statusCode"] == 200
-    assert json.loads(res["body"])["count"] == 4
+    assert json.loads(res["body"])["count"] == 3
 
 
 def test_sync_accepts_events_for_custom_axes_after_config():

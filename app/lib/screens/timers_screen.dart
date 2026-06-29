@@ -132,6 +132,60 @@ class _TimersScreenState extends State<TimersScreen> {
     await _persist();
   }
 
+  /// Change a (possibly running) timer's category and/or name — keeps elapsed.
+  Future<void> _edit(TimerEntry t) async {
+    final axes = widget.repo.axesConfig;
+    String axisKey = axes.any((a) => a.key == t.axisKey) ? t.axisKey
+        : (axes.isNotEmpty ? axes.first.key : t.axisKey);
+    final nameController = TextEditingController(text: t.label);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Edit timer'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                value: axisKey,
+                decoration: const InputDecoration(labelText: 'Category'),
+                items: axes
+                    .map((a) => DropdownMenuItem(
+                          value: a.key,
+                          child: Row(children: [
+                            Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
+                            const SizedBox(width: 8),
+                            Text(a.label),
+                          ]),
+                        ))
+                    .toList(),
+                onChanged: (v) => setLocal(() => axisKey = v ?? axisKey),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Activity (optional)'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      var name = nameController.text.trim();
+      if (name.isEmpty) name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
+      setState(() {
+        t.axisKey = axisKey;
+        t.label = name;
+      });
+      await _persist();
+    }
+  }
+
   Future<void> _discard(TimerEntry t) async {
     setState(() => _timers.remove(t));
     await _persist();
@@ -243,6 +297,12 @@ class _TimersScreenState extends State<TimersScreen> {
                   Text(
                     '${axis?.label ?? t.axisKey} · ${t.isRunning ? "running" : "paused"}',
                     style: theme.textTheme.bodySmall,
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    tooltip: 'Edit category / name',
+                    onPressed: () => _edit(t),
                   ),
                 ],
               ),

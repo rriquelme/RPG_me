@@ -32,6 +32,28 @@ class OctagonView {
   });
 }
 
+/// A small at-a-glance summary of one category, for the Log screen dashboard.
+class CategoryStats {
+  final String axisKey;
+  final String label;
+  final int weekCount;
+  final int weekSeconds;
+  final int totalCount;
+  final int totalSeconds;
+  final int level;
+  final DateTime? lastLogged;
+  const CategoryStats({
+    required this.axisKey,
+    required this.label,
+    required this.weekCount,
+    required this.weekSeconds,
+    required this.totalCount,
+    required this.totalSeconds,
+    required this.level,
+    required this.lastLogged,
+  });
+}
+
 /// Local-first data layer. All reads/writes hit the on-device event log so the
 /// app works fully offline; [sync] optionally pushes unsynced events to the
 /// backend when one is configured.
@@ -166,6 +188,39 @@ class Repository {
       exp: _engine.expByAxis(since: since),
       counts: _engine.countByAxis(since: since),
       days: days,
+    );
+  }
+
+  // --- per-category dashboard (for the Log screen) ------------------------
+  /// At-a-glance stats for one category: this week (since the configured first
+  /// day of week) and all-time counts/time, current level, and last-logged date.
+  CategoryStats categoryStats(String axisKey) {
+    final weekStart = OctagonPeriod.since('this_week',
+        firstDayOfWeek: settings.firstDayOfWeek);
+    final engine = _engine;
+    final weekCounts = engine.countByAxis(since: weekStart);
+    final weekSecs = engine.timeTotals(since: weekStart).byAxis;
+    final totalCounts = engine.countByAxis();
+    final totalSecs = engine.timeTotals().byAxis;
+    final totalExp = engine.expByAxis();
+    final label = _axes
+        .firstWhere((a) => a.key == axisKey,
+            orElse: () => AxisDef(axisKey, axisKey, '', '#4C72B0'))
+        .label;
+    DateTime? last;
+    for (final e in _events) {
+      if (e.axisKey != axisKey) continue;
+      if (last == null || e.timestamp.isAfter(last)) last = e.timestamp;
+    }
+    return CategoryStats(
+      axisKey: axisKey,
+      label: label,
+      weekCount: weekCounts[axisKey] ?? 0,
+      weekSeconds: weekSecs[axisKey] ?? 0,
+      totalCount: totalCounts[axisKey] ?? 0,
+      totalSeconds: totalSecs[axisKey] ?? 0,
+      level: levelForExp(totalExp[axisKey] ?? 0),
+      lastLogged: last,
     );
   }
 

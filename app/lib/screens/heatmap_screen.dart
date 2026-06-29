@@ -91,6 +91,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             seconds: _globalSeconds,
             isTime: isTime,
             baseColor: const Color(0xFF2E9E4F),
+            firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
           ),
           const SizedBox(height: 28),
           const Divider(),
@@ -126,6 +127,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             baseColor: _axisKey == null
                 ? Theme.of(context).colorScheme.primary
                 : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
+            firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
           ),
         ],
       ),
@@ -133,20 +135,16 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   }
 }
 
-/// A single 26-week heatmap grid with weekday labels and tappable days.
-class HeatGrid extends StatelessWidget {
+/// A month-by-month heatmap calendar: each day sits in its real weekday row,
+/// with blank cells before the 1st and after the last day so months separate
+/// naturally (no fake "every month starts Monday"). Weekday labels follow the
+/// configured first day of week; auto-scrolls to the most recent month.
+class HeatGrid extends StatefulWidget {
   final Map<String, int> counts;
   final Map<String, int> seconds;
   final bool isTime;
   final Color baseColor;
-  static const _weeks = 26;
-  static const _cell = 15.0;
-  static const _margin = 2.0;
-  static const _row = _cell + 2 * _margin; // total height of one day row
-
-  static const _weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  final int firstDayOfWeek; // DateTime.monday..sunday
 
   const HeatGrid({
     super.key,
@@ -154,20 +152,53 @@ class HeatGrid extends StatelessWidget {
     required this.seconds,
     required this.isTime,
     required this.baseColor,
+    required this.firstDayOfWeek,
   });
 
-  /// Frequency: absolute buckets (1 light → 4+ darkest). Time: relative to max.
+  @override
+  State<HeatGrid> createState() => _HeatGridState();
+}
+
+class _HeatGridState extends State<HeatGrid> {
+  static const _monthsBack = 6; // months shown, including the current one
+  static const _cell = 15.0;
+  static const _margin = 2.0;
+  static const _row = _cell + 2 * _margin;
+  static const _gap = 10.0; // space between month blocks
+  static const _monthH = 18.0;
+
+  static const _letters = {1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F', 6: 'S', 7: 'S'};
+  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  final _sc = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Show the most recent weeks first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_sc.hasClients) _sc.jumpTo(_sc.position.maxScrollExtent);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sc.dispose();
+    super.dispose();
+  }
+
   Color _color(BuildContext context, int count, int secs, int maxSecs) {
     final empty = Theme.of(context).colorScheme.surfaceContainerHighest;
-    if (isTime) {
+    if (widget.isTime) {
       if (secs <= 0 || maxSecs <= 0) return empty;
       final r = secs / maxSecs;
       final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
-      return baseColor.withOpacity(o);
+      return widget.baseColor.withOpacity(o);
     }
     if (count <= 0) return empty;
     final o = count == 1 ? 0.32 : (count == 2 ? 0.52 : (count == 3 ? 0.74 : 1.0));
-    return baseColor.withOpacity(o);
+    return widget.baseColor.withOpacity(o);
   }
 
   void _showDay(BuildContext context, DateTime date, int count, int secs) {
@@ -183,15 +214,86 @@ class HeatGrid extends StatelessWidget {
     );
   }
 
+  Widget _blankCell() =>
+      Container(width: _cell, height: _cell, margin: const EdgeInsets.all(_margin));
+
+  Widget _dayCell(BuildContext context, DateTime date, int maxSecs) {
+    final k = LocalEngine.dayKey(date);
+    final c = widget.counts[k] ?? 0;
+    final s = widget.seconds[k] ?? 0;
+    return GestureDetector(
+      onTap: () => _showDay(context, date, c, s),
+      child: Container(
+        width: _cell,
+        height: _cell,
+        margin: const EdgeInsets.all(_margin),
+        decoration: BoxDecoration(
+          color: _color(context, c, s, maxSecs),
+          borderRadius: BorderRadius.circular(3),
+        ),
+      ),
+    );
+  }
+
+  /// One month as a calendar: columns are weeks, each day in its weekday row,
+  /// with blanks padding the first and last weeks.
+  Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
+      int maxSecs, TextStyle? labelStyle) {
+    final fdow = widget.firstDayOfWeek;
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final r1 = (DateTime(year, month, 1).weekday - fdow + 7) % 7; // row of the 1st
+    final cols = ((r1 + daysInMonth) / 7).ceil();
+
+    final columns = List.generate(cols, (c) {
+      return Column(
+        children: List.generate(7, (r) {
+          final dayNum = c * 7 + r - r1 + 1;
+          if (dayNum < 1 || dayNum > daysInMonth) return _blankCell();
+          final date = DateTime(year, month, dayNum);
+          if (date.isAfter(today)) return _blankCell();
+          return _dayCell(context, date, maxSecs);
+        }),
+      );
+    });
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: _monthH,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: Text(
+              month == DateTime.january ? '${_months[month - 1]} $year' : _months[month - 1],
+              style: labelStyle?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: columns),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final monday = today.subtract(Duration(days: today.weekday - 1));
-    final start = monday.subtract(const Duration(days: (_weeks - 1) * 7));
-    final maxSecs = seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
-    final maxCount = counts.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final fdow = widget.firstDayOfWeek;
+
+    // Last N months, including the current one (oldest -> newest).
+    final months = List.generate(
+        _monthsBack, (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
+
+    final maxSecs = widget.seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxCount = widget.counts.values.fold<int>(0, (a, b) => a > b ? a : b);
     final labelStyle = Theme.of(context).textTheme.bodySmall;
+
+    final blocks = <Widget>[];
+    for (var mi = 0; mi < months.length; mi++) {
+      final fom = months[mi];
+      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxSecs, labelStyle));
+      if (mi != months.length - 1) blocks.add(const SizedBox(width: _gap));
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,49 +301,27 @@ class HeatGrid extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Weekday labels on the left.
+            // Weekday labels (ordered by first day of week), with a top spacer
+            // to line up under the month labels.
             Column(
-              children: List.generate(
-                7,
-                (d) => SizedBox(
-                  height: _row,
-                  width: 22,
-                  child: Center(child: Text(_weekdays[d], style: labelStyle)),
-                ),
-              ),
+              children: [
+                const SizedBox(height: _monthH),
+                ...List.generate(7, (r) {
+                  final weekday = ((fdow - 1 + r) % 7) + 1;
+                  return SizedBox(
+                    height: _row,
+                    width: 22,
+                    child: Center(child: Text(_letters[weekday]!, style: labelStyle)),
+                  );
+                }),
+              ],
             ),
+            const SizedBox(width: 4),
             Expanded(
               child: SingleChildScrollView(
+                controller: _sc,
                 scrollDirection: Axis.horizontal,
-                reverse: true,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: List.generate(_weeks, (w) {
-                    return Column(
-                      children: List.generate(7, (d) {
-                        final date = start.add(Duration(days: w * 7 + d));
-                        final future = date.isAfter(today);
-                        final k = LocalEngine.dayKey(date);
-                        final c = future ? 0 : (counts[k] ?? 0);
-                        final s = future ? 0 : (seconds[k] ?? 0);
-                        return GestureDetector(
-                          onTap: future ? null : () => _showDay(context, date, c, s),
-                          child: Container(
-                            width: _cell,
-                            height: _cell,
-                            margin: const EdgeInsets.all(_margin),
-                            decoration: BoxDecoration(
-                              color: future
-                                  ? Colors.transparent
-                                  : _color(context, c, s, maxSecs),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        );
-                      }),
-                    );
-                  }),
-                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: blocks),
               ),
             ),
           ],
@@ -255,7 +335,7 @@ class HeatGrid extends StatelessWidget {
                 height: 13,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  color: baseColor.withOpacity(o),
+                  color: widget.baseColor.withOpacity(o),
                   borderRadius: BorderRadius.circular(3),
                 ),
               )),
@@ -263,7 +343,7 @@ class HeatGrid extends StatelessWidget {
           Text('More', style: labelStyle),
           const Spacer(),
           Text(
-            isTime
+            widget.isTime
                 ? (maxSecs == 0 ? 'No data' : 'peak ${formatHms(maxSecs)}')
                 : (maxCount == 0 ? 'No data' : 'peak $maxCount×'),
             style: labelStyle,

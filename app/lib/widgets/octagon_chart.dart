@@ -2,23 +2,57 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-/// One spoke of the radar chart: a label, its configured colour, and a value.
+/// One spoke of the radar chart: a label, its configured colour, a value, and
+/// the axis key it represents (for tap handling).
 class RadarPoint {
+  final String axisKey;
   final String label;
   final Color color;
   final double value;
-  const RadarPoint({required this.label, required this.color, required this.value});
+  const RadarPoint({
+    required this.axisKey,
+    required this.label,
+    required this.color,
+    required this.value,
+  });
 }
 
-/// The octagon: a 4–10 axis radar chart drawn so each axis uses the colour set
-/// for it in Settings (coloured vertices + labels).
+/// The octagon: a 3–10 axis radar chart drawn so each axis uses the colour set
+/// for it in Settings (coloured vertices + labels). Tapping toward an axis
+/// fires [onTapAxis] with that axis key.
 class OctagonChart extends StatelessWidget {
   final List<RadarPoint> points;
 
   /// Formats the per-axis value shown under each label (e.g. "12h", "L3").
   final String Function(double value) formatValue;
 
-  const OctagonChart({super.key, required this.points, required this.formatValue});
+  final void Function(String axisKey)? onTapAxis;
+
+  const OctagonChart({
+    super.key,
+    required this.points,
+    required this.formatValue,
+    this.onTapAxis,
+  });
+
+  int? _nearestAxis(Offset p, double side) {
+    final n = points.length;
+    final dx = p.dx - side / 2, dy = p.dy - side / 2;
+    if (dx * dx + dy * dy < 64) return null; // central dead zone
+    final a = math.atan2(dy, dx);
+    var best = double.infinity;
+    var bi = 0;
+    for (var i = 0; i < n; i++) {
+      final ax = -math.pi / 2 + i * 2 * math.pi / n;
+      var diff = (a - ax).abs() % (2 * math.pi);
+      if (diff > math.pi) diff = 2 * math.pi - diff;
+      if (diff < best) {
+        best = diff;
+        bi = i;
+      }
+    }
+    return bi;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,16 +65,33 @@ class OctagonChart extends StatelessWidget {
 
     return AspectRatio(
       aspectRatio: 1,
-      child: CustomPaint(
-        painter: _OctagonPainter(
-          points: points,
-          ceiling: ceiling,
-          gridColor: theme.dividerColor,
-          fillColor: theme.colorScheme.primary.withOpacity(0.18),
-          lineColor: theme.colorScheme.primary,
-          labelStyle: theme.textTheme.labelSmall ?? const TextStyle(fontSize: 11),
-          formatValue: formatValue,
-        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = constraints.maxWidth;
+          Widget chart = CustomPaint(
+            size: Size(side, side),
+            painter: _OctagonPainter(
+              points: points,
+              ceiling: ceiling,
+              gridColor: theme.dividerColor,
+              fillColor: theme.colorScheme.primary.withOpacity(0.18),
+              lineColor: theme.colorScheme.primary,
+              labelStyle: theme.textTheme.labelSmall ?? const TextStyle(fontSize: 11),
+              formatValue: formatValue,
+            ),
+          );
+          if (onTapAxis != null) {
+            chart = GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapUp: (d) {
+                final i = _nearestAxis(d.localPosition, side);
+                if (i != null) onTapAxis!(points[i].axisKey);
+              },
+              child: chart,
+            );
+          }
+          return chart;
+        },
       ),
     );
   }
