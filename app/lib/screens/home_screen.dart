@@ -17,7 +17,7 @@ import 'settings_screen.dart';
 import 'time_screen.dart';
 import 'timers_screen.dart';
 
-enum OctagonMetric { hours, frequency, levels }
+enum OctagonMetric { hours, frequency, levels, number, percentage }
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -54,6 +54,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final repo = _repo;
     if (repo == null) return;
+    // Fall back to Frequency if the selected metric was just disabled.
+    if (!_availableMetrics(repo.settings).contains(_metric)) {
+      _metric = OctagonMetric.frequency;
+    }
     final summary = await repo.summary();
     final OctagonView view;
     if (_customActive) {
@@ -270,13 +274,19 @@ class _HomeScreenState extends State<HomeScreen> {
         return (v.counts[key] ?? 0).toDouble();
       case OctagonMetric.levels:
         return levelForExp(v.exp[key] ?? 0).toDouble();
+      case OctagonMetric.number:
+        return v.numbers[key] ?? 0;
+      case OctagonMetric.percentage:
+        return v.percentAvg[key] ?? 0;
     }
   }
 
   List<RadarPoint> _points(OctagonView v, bool average) {
+    // Percentage is already an average — avg/day doesn't divide it.
+    final divisible = average && _metric != OctagonMetric.percentage;
     return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key);
-      if (average && v.days > 0) value = value / v.days;
+      if (divisible && v.days > 0) value = value / v.days;
       return RadarPoint(
         axisKey: a.key,
         label: a.label,
@@ -285,6 +295,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }).toList();
   }
+
+  /// The metrics available given the enabled settings (Levels stays hidden).
+  Set<OctagonMetric> _availableMetrics(Settings s) => {
+        OctagonMetric.frequency,
+        OctagonMetric.hours,
+        if (s.trackNumber) OctagonMetric.number,
+        if (s.trackPercentage) OctagonMetric.percentage,
+      };
 
   Future<void> _logForCategory(String axisKey) async {
     final repo = _repo;
@@ -306,6 +324,12 @@ class _HomeScreenState extends State<HomeScreen> {
       case OctagonMetric.hours:
         if (v >= 1) return '${v.toStringAsFixed(v < 10 ? 1 : 0)}h$suffix';
         return '${(v * 60).round()}m$suffix';
+      case OctagonMetric.number:
+        final s = (v % 1 == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+        return '$s$suffix';
+      case OctagonMetric.percentage:
+        // Percentage ignores avg/day (it's already an average).
+        return '${v.toStringAsFixed(0)}%';
     }
   }
 
@@ -380,14 +404,25 @@ class _HomeScreenState extends State<HomeScreen> {
             style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 8),
         Center(
-          child: SegmentedButton<OctagonMetric>(
-            showSelectedIcon: false, // keep segment widths fixed (no resize on toggle)
-            segments: const [
-              ButtonSegment(value: OctagonMetric.frequency, label: Text('Frequency')),
-              ButtonSegment(value: OctagonMetric.hours, label: Text('Hours')),
-            ],
-            selected: {_metric},
-            onSelectionChanged: (s) => setState(() => _metric = s.first),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<OctagonMetric>(
+              showSelectedIcon: false, // keep segment widths fixed (no resize on toggle)
+              segments: [
+                const ButtonSegment(
+                    value: OctagonMetric.frequency, label: Text('Frequency')),
+                const ButtonSegment(
+                    value: OctagonMetric.hours, label: Text('Hours')),
+                if (repo.settings.trackNumber)
+                  const ButtonSegment(
+                      value: OctagonMetric.number, label: Text('Number')),
+                if (repo.settings.trackPercentage)
+                  const ButtonSegment(
+                      value: OctagonMetric.percentage, label: Text('Percent')),
+              ],
+              selected: {_metric},
+              onSelectionChanged: (s) => setState(() => _metric = s.first),
+            ),
           ),
         ),
         const SizedBox(height: 8),

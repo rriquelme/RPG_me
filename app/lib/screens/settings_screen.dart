@@ -53,6 +53,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setTrackNumber(bool on) async {
+    await Settings.saveTrackNumber(on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(trackNumber: on));
+    setState(() {});
+  }
+
+  Future<void> _setTrackPercentage(bool on) async {
+    await Settings.saveTrackPercentage(on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(trackPercentage: on));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,6 +104,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             value: widget.repo.settings.showDashboardOnLog,
             onChanged: _setShowDashboard,
+          ),
+          const Divider(height: 40),
+          Text('Extra metrics', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text(
+            'Track an extra number and/or a percentage per log. Each adds a '
+            'field on the Log screen and a metric to the octagon toggle.',
+            style: TextStyle(fontSize: 13),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Track number'),
+            subtitle: const Text('A free number per log (summed on the octagon).'),
+            value: widget.repo.settings.trackNumber,
+            onChanged: _setTrackNumber,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Track percentage'),
+            subtitle: const Text('A 0–100% per log (averaged on the octagon).'),
+            value: widget.repo.settings.trackPercentage,
+            onChanged: _setTrackPercentage,
           ),
           const Divider(height: 40),
           Text('API settings', style: Theme.of(context).textTheme.titleMedium),

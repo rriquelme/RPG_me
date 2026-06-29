@@ -10,6 +10,8 @@ class Settings {
   static const _kAverage = 'octagon_average';
   static const _kFirstDay = 'first_day_of_week';
   static const _kShowDash = 'show_dashboard_on_log';
+  static const _kTrackNumber = 'track_number';
+  static const _kTrackPercentage = 'track_percentage';
 
   final String baseUrl;
   final String user;
@@ -17,6 +19,8 @@ class Settings {
   final bool averagePerDay;
   final int firstDayOfWeek; // DateTime.monday(1)..DateTime.sunday(7)
   final bool showDashboardOnLog; // show a category dashboard atop the Log screen
+  final bool trackNumber; // enable the "number" metric + log field
+  final bool trackPercentage; // enable the "percentage" metric + log field
 
   const Settings({
     required this.baseUrl,
@@ -25,6 +29,8 @@ class Settings {
     this.averagePerDay = false,
     this.firstDayOfWeek = DateTime.monday,
     this.showDashboardOnLog = false,
+    this.trackNumber = false,
+    this.trackPercentage = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -36,6 +42,8 @@ class Settings {
     bool? averagePerDay,
     int? firstDayOfWeek,
     bool? showDashboardOnLog,
+    bool? trackNumber,
+    bool? trackPercentage,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -44,6 +52,8 @@ class Settings {
         averagePerDay: averagePerDay ?? this.averagePerDay,
         firstDayOfWeek: firstDayOfWeek ?? this.firstDayOfWeek,
         showDashboardOnLog: showDashboardOnLog ?? this.showDashboardOnLog,
+        trackNumber: trackNumber ?? this.trackNumber,
+        trackPercentage: trackPercentage ?? this.trackPercentage,
       );
 
   static Future<Settings> load() async {
@@ -55,6 +65,8 @@ class Settings {
       averagePerDay: prefs.getBool(_kAverage) ?? false,
       firstDayOfWeek: prefs.getInt(_kFirstDay) ?? DateTime.monday,
       showDashboardOnLog: prefs.getBool(_kShowDash) ?? false,
+      trackNumber: prefs.getBool(_kTrackNumber) ?? false,
+      trackPercentage: prefs.getBool(_kTrackPercentage) ?? false,
     );
   }
 
@@ -81,6 +93,16 @@ class Settings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kShowDash, show);
   }
+
+  static Future<void> saveTrackNumber(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTrackNumber, on);
+  }
+
+  static Future<void> saveTrackPercentage(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kTrackPercentage, on);
+  }
 }
 
 /// The selectable windows for the home octagon.
@@ -90,6 +112,7 @@ class OctagonPeriod {
   const OctagonPeriod(this.key, this.label);
 
   static const all = [
+    OctagonPeriod('today', 'Today'),
     OctagonPeriod('this_week', 'This week'),
     OctagonPeriod('last_7', 'Last 7 days'),
     OctagonPeriod('this_month', 'This month'),
@@ -105,6 +128,8 @@ class OctagonPeriod {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     switch (key) {
+      case 'today':
+        return today;
       case 'this_week':
         final delta = (today.weekday - firstDayOfWeek + 7) % 7;
         return today.subtract(Duration(days: delta));

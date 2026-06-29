@@ -30,6 +30,8 @@ class LogScreen extends StatefulWidget {
 class _LogScreenState extends State<LogScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _numberController = TextEditingController();
+  final _percentController = TextEditingController();
   List<AxisDef> _axes = [];
   String? _selectedAxis;
   String? _selectedSub; // optional subcategory within the selected category
@@ -58,6 +60,8 @@ class _LogScreenState extends State<LogScreen> {
       _minutes = (ex.seconds % 3600) ~/ 60;
       _when = ex.timestamp;
       _hidden = ex.hidden;
+      if (ex.number != null) _numberController.text = _fmtNum(ex.number!);
+      if (ex.percentage != null) _percentController.text = _fmtNum(ex.percentage!);
     }
     final a = widget.repo.axesConfig;
     _axes = a;
@@ -167,6 +171,16 @@ class _LogScreenState extends State<LogScreen> {
       }
       final ex = widget.existing;
       final sub = _selectedSub ?? '';
+      final settings = widget.repo.settings;
+      final number = settings.trackNumber
+          ? double.tryParse(_numberController.text.trim().replaceAll(',', '.'))
+          : null;
+      double? percentage;
+      if (settings.trackPercentage) {
+        final p =
+            double.tryParse(_percentController.text.trim().replaceAll(',', '.'));
+        if (p != null) percentage = p.clamp(0, 100).toDouble();
+      }
       if (ex != null) {
         await widget.repo.updateEvent(
           ex.id,
@@ -177,6 +191,8 @@ class _LogScreenState extends State<LogScreen> {
           note: ex.note,
           subcategory: sub,
           hidden: _hidden,
+          number: number,
+          percentage: percentage,
         );
       } else {
         await widget.repo.log(
@@ -186,6 +202,8 @@ class _LogScreenState extends State<LogScreen> {
           at: _when,
           subcategory: sub,
           hidden: _hidden,
+          number: number,
+          percentage: percentage,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -197,9 +215,15 @@ class _LogScreenState extends State<LogScreen> {
     }
   }
 
+  /// Format a stored double without a trailing ".0".
+  String _fmtNum(double n) =>
+      n % 1 == 0 ? n.toInt().toString() : n.toString();
+
   @override
   void dispose() {
     _nameController.dispose();
+    _numberController.dispose();
+    _percentController.dispose();
     super.dispose();
   }
 
@@ -343,6 +367,31 @@ class _LogScreenState extends State<LogScreen> {
                   hintText: 'gym, read, meditate…',
                 ),
               ),
+              if (widget.repo.settings.trackNumber) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _numberController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Number (optional)',
+                    hintText: 'e.g. 12',
+                  ),
+                ),
+              ],
+              if (widget.repo.settings.trackPercentage) ...[
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _percentController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Percentage (optional)',
+                    hintText: '0–100',
+                    suffixText: '%',
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Text('Time spent', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),

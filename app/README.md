@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.25
+
+- **Optional Number & Percentage metrics** (off by default) — Settings →
+  *Extra metrics* has **Track number** and **Track percentage** switches. Each
+  one you enable adds a field on the Log screen and a metric to the octagon
+  toggle (**Frequency · Hours · Number · Percent**). Numbers are **summed** per
+  category; percentages are **averaged** (and ignore Avg/day). They can be mixed
+  freely on the dashboard.
+- **Today** is now an option in the octagon period dropdown.
+
 ## What's new in 0.24
 
 - **Custom time window** — next to *Avg / day* there's now a **Custom** chip.

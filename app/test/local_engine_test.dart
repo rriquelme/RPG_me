@@ -155,6 +155,27 @@ void main() {
     expect(sd.dominant[k], 'gym');
   });
 
+  test('numberByAxis sums and percentAvgByAxis averages per axis', () {
+    Event e({required String axis, double? number, double? percentage}) => Event(
+        id: Event.newId(),
+        axisKey: axis,
+        name: 'x',
+        exp: 10,
+        timestamp: DateTime.now(),
+        number: number,
+        percentage: percentage);
+    final eng = LocalEngine([
+      e(axis: 'health', number: 10, percentage: 50),
+      e(axis: 'health', number: 5, percentage: 100),
+      e(axis: 'health'), // neither tracked — ignored by both
+      e(axis: 'mind', number: 3),
+    ]);
+    expect(eng.numberByAxis()['health'], 15);
+    expect(eng.numberByAxis()['mind'], 3);
+    expect(eng.percentAvgByAxis()['health'], 75); // (50 + 100) / 2
+    expect(eng.percentAvgByAxis().containsKey('mind'), false); // no percentages
+  });
+
   test('countByAxis/timeTotals honor a since..until window', () {
     final eng = LocalEngine([
       ev('health', 'a', seconds: 600, at: DateTime(2026, 6, 1, 9)),

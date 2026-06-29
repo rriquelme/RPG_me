@@ -22,12 +22,16 @@ class OctagonView {
   final Map<String, int> seconds; // per axis, within the window
   final Map<String, int> exp; // per axis, within the window
   final Map<String, int> counts; // events per axis, within the window
+  final Map<String, double> numbers; // summed "number" per axis
+  final Map<String, double> percentAvg; // averaged "percentage" per axis
   final int days; // days the window covers (for average-per-day)
   const OctagonView({
     required this.axes,
     required this.seconds,
     required this.exp,
     required this.counts,
+    required this.numbers,
+    required this.percentAvg,
     required this.days,
   });
 }
@@ -99,6 +103,8 @@ class Repository {
     DateTime? at,
     String subcategory = '',
     bool hidden = false,
+    double? number,
+    double? percentage,
   }) async {
     final perMinute = (seconds / 60).round();
     final resolvedExp = exp ?? (seconds > 0 ? (perMinute < 1 ? 1 : perMinute) : 10);
@@ -108,6 +114,8 @@ class Repository {
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
       hidden: hidden,
+      number: number,
+      percentage: percentage,
       exp: resolvedExp,
       note: note,
       timestamp: at ?? DateTime.now(),
@@ -151,6 +159,8 @@ class Repository {
     String note = '',
     String subcategory = '',
     bool hidden = false,
+    double? number,
+    double? percentage,
   }) async {
     final i = _events.indexWhere((e) => e.id == id);
     if (i < 0) return;
@@ -162,6 +172,8 @@ class Repository {
       name: name.trim().toLowerCase(),
       subcategory: subcategory.trim(),
       hidden: hidden,
+      number: number,
+      percentage: percentage,
       exp: exp,
       note: note,
       timestamp: at ?? _events[i].timestamp,
@@ -194,6 +206,8 @@ class Repository {
       seconds: _engine.timeTotals(since: since, until: until, excludeHidden: true).byAxis,
       exp: _engine.expByAxis(since: since, until: until, excludeHidden: true),
       counts: _engine.countByAxis(since: since, until: until, excludeHidden: true),
+      numbers: _engine.numberByAxis(since: since, until: until, excludeHidden: true),
+      percentAvg: _engine.percentAvgByAxis(since: since, until: until, excludeHidden: true),
       days: days,
     );
   }
