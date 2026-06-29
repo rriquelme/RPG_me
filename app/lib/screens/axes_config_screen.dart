@@ -100,6 +100,9 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
 
   void _removeSub(int j) => _setSubs(List.of(_subs)..removeAt(j));
 
+  void _toggleSubHidden(int j) =>
+      _setSubs(List.of(_subs)..[j] = _subs[j].copyWith(hidden: !_subs[j].hidden));
+
   void _reorderSub(int oldIndex, int newIndex) {
     if (newIndex > oldIndex) newIndex -= 1;
     final next = List.of(_subs);
@@ -405,7 +408,12 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                   onTap: () => _pickSubColor(j),
                   child: CircleAvatar(backgroundColor: swatch, radius: 14),
                 ),
-                title: Text(sub.name),
+                title: Text(
+                  sub.name,
+                  style: sub.hidden
+                      ? TextStyle(color: Theme.of(context).disabledColor)
+                      : null,
+                ),
                 subtitle: sub.colorHex.isEmpty
                     ? Text('Uses ${axis.label} colour',
                         style: Theme.of(context).textTheme.bodySmall)
@@ -414,11 +422,23 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(sub.hidden
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined),
+                      tooltip: sub.hidden
+                          ? 'Hidden from charts — tap to show'
+                          : 'Shown on charts — tap to hide',
+                      onPressed: () => _toggleSubHidden(j),
+                    ),
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.edit_outlined),
                       tooltip: 'Rename',
                       onPressed: () => _renameSub(j),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
                       icon: const Icon(Icons.delete_outline),
                       tooltip: 'Remove',
                       onPressed: () => _removeSub(j),
@@ -426,7 +446,7 @@ class _AxesConfigScreenState extends State<AxesConfigScreen> {
                     ReorderableDragStartListener(
                       index: j,
                       child: const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        padding: EdgeInsets.symmetric(horizontal: 6),
                         child: Icon(Icons.drag_handle),
                       ),
                     ),

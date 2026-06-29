@@ -107,6 +107,35 @@ void main() {
     expect(none.subcategories, isEmpty);
   });
 
+  test('hidden subcategories are excluded from the octagon and breakdown', () {
+    final day = DateTime(2026, 6, 1, 9);
+    Event e(String id, String sub, {int secs = 0}) => Event(
+        id: id, axisKey: 'health', name: 'x', exp: 10, timestamp: day,
+        seconds: secs, subcategory: sub);
+    final axes = const [
+      AxisDef('health', 'Health', '', '#DD5555', subcategories: [
+        SubcategoryDef('gym'),
+        SubcategoryDef('junk', '', true), // hidden
+      ]),
+      AxisDef('mind', 'Mind', '', '#4C72B0'),
+      AxisDef('career', 'Career', '', '#55883B'),
+    ];
+    final eng = LocalEngine([
+      e('1', 'gym', secs: 600),
+      e('2', 'junk', secs: 600), // hidden subcategory
+      e('3', ''), // untagged, still counts
+    ], axes);
+    // Octagon excludes the hidden subcategory's event.
+    expect(eng.countByAxis(excludeHidden: true)['health'], 2);
+    expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 600);
+    // The default (heatmap/history) still includes everything.
+    expect(eng.countByAxis()['health'], 3);
+    // The "all subcategories" breakdown drops the hidden one.
+    final sd = eng.subcategoryDays('health');
+    expect(sd.counts[LocalEngine.dayKey(day)], 1); // only 'gym'
+    expect(sd.dominant[LocalEngine.dayKey(day)], 'gym');
+  });
+
   test('subcategoryDays finds the dominant subcategory per day', () {
     final day = DateTime(2026, 6, 1, 9);
     Event e(String id, String name, String sub) => Event(

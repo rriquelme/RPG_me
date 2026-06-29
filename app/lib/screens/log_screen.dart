@@ -317,6 +317,12 @@ class _LogScreenState extends State<LogScreen> {
                                     axis, s.name, colorFromHex(axis.colorHex))),
                             const SizedBox(width: 8),
                             Text(s.name),
+                            if (s.hidden) ...[
+                              const SizedBox(width: 6),
+                              Icon(Icons.visibility_off_outlined,
+                                  size: 14,
+                                  color: Theme.of(context).disabledColor),
+                            ],
                           ]),
                         )),
                   ],

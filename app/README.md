@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.19
+
+- **Hide a whole subcategory from the charts** — in *Edit categories →
+  Subcategories*, each subcategory has a 👁 eye toggle. Hiding one keeps it
+  loggable but drops its entries from the octagon and the subcategory
+  dashboard. You can now hide at three levels: a **category**, a
+  **subcategory**, or a **single log entry**.
+
 ## What's new in 0.18
 
 - **Subcategories now have their own editor and colours** — *Edit categories*
