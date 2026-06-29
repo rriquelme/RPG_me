@@ -130,10 +130,13 @@ void main() {
     expect(eng.timeTotals(excludeHidden: true).byAxis['health'], 600);
     // The default (heatmap/history) still includes everything.
     expect(eng.countByAxis()['health'], 3);
-    // The "all subcategories" breakdown drops the hidden one.
+    // The "all subcategories" breakdown drops the hidden one...
     final sd = eng.subcategoryDays('health');
     expect(sd.counts[LocalEngine.dayKey(day)], 1); // only 'gym'
     expect(sd.dominant[LocalEngine.dayKey(day)], 'gym');
+    // ...unless includeHidden is set (the "inc. hidden" view).
+    final sdAll = eng.subcategoryDays('health', includeHidden: true);
+    expect(sdAll.counts[LocalEngine.dayKey(day)], 2); // gym + junk
   });
 
   test('subcategoryDays finds the dominant subcategory per day', () {

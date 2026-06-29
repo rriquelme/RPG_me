@@ -125,8 +125,8 @@ class Repository {
 
   /// Per-day breakdown of an axis's subcategories (counts/seconds + the
   /// dominant subcategory each day), for the "all subcategories" heatmap.
-  Future<SubcatDays> subcategoryDays(String axisKey) async =>
-      _engine.subcategoryDays(axisKey);
+  Future<SubcatDays> subcategoryDays(String axisKey, {bool includeHidden = false}) async =>
+      _engine.subcategoryDays(axisKey, includeHidden: includeHidden);
 
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.

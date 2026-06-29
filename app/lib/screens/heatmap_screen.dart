@@ -6,6 +6,9 @@ import '../repository.dart';
 
 enum _Metric { count, time }
 
+/// Sentinel for the "All subcategories (inc. hidden)" dropdown item.
+const String _kAllIncHidden = '__all_inc_hidden__';
+
 /// GitHub-contributions-style calendars: a **global** grid for all activity,
 /// one filtered **by category**, and a third **by subcategory** (for the
 /// selected category — all subcategories coloured by each day's dominant, or a
@@ -95,8 +98,9 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       }
       return;
     }
-    if (_subKey == null) {
-      final days = await widget.repo.subcategoryDays(key);
+    if (_subKey == null || _subKey == _kAllIncHidden) {
+      final days = await widget.repo
+          .subcategoryDays(key, includeHidden: _subKey == _kAllIncHidden);
       final fallback = colorFromHex(axis.colorHex);
       if (mounted) {
         setState(() {
@@ -211,6 +215,9 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
                   items: [
                     const DropdownMenuItem<String?>(
                         value: null, child: Text('All subcategories')),
+                    const DropdownMenuItem<String?>(
+                        value: _kAllIncHidden,
+                        child: Text('All subcategories (inc. hidden)')),
                     ...subAxis.subcategories.map((s) => DropdownMenuItem<String?>(
                           value: s.name,
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -242,7 +249,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
               counts: _subCounts,
               seconds: _subSeconds,
               isTime: isTime,
-              baseColor: _subKey == null
+              baseColor: (_subKey == null || _subKey == _kAllIncHidden)
                   ? colorFromHex(subAxis.colorHex)
                   : _subColor(subAxis, _subKey!, colorFromHex(subAxis.colorHex)),
               firstDayOfWeek: widget.repo.settings.firstDayOfWeek,

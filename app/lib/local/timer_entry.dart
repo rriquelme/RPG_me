@@ -8,6 +8,7 @@ class TimerEntry {
   final String id;
   String label; // activity name, e.g. "study"
   String axisKey; // category
+  String subcategory; // optional subcategory within the category
   int accumulatedMs; // banked time while paused
   DateTime? runningSince; // non-null while running
 
@@ -15,6 +16,7 @@ class TimerEntry {
     required this.id,
     required this.label,
     required this.axisKey,
+    this.subcategory = '',
     this.accumulatedMs = 0,
     this.runningSince,
   });
@@ -52,6 +54,7 @@ class TimerEntry {
         'id': id,
         'label': label,
         'axis_key': axisKey,
+        if (subcategory.isNotEmpty) 'subcategory': subcategory,
         'accumulated_ms': accumulatedMs,
         'running_since': runningSince?.toIso8601String(),
       };
@@ -60,6 +63,7 @@ class TimerEntry {
         id: j['id'] as String,
         label: (j['label'] ?? '') as String,
         axisKey: j['axis_key'] as String,
+        subcategory: (j['subcategory'] ?? '') as String,
         // Migrate older entries that stored whole seconds in 'accumulated'.
         accumulatedMs: (j['accumulated_ms'] as int?) ??
             (((j['accumulated'] ?? 0) as int) * 1000),

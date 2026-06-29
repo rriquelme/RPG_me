@@ -4,10 +4,8 @@ import '../local/event.dart';
 import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
+import '../widgets/subcategory_dialogs.dart';
 import 'heatmap_screen.dart' show HeatGrid;
-
-/// Sentinel value for the "Create new…" item in the subcategory dropdown.
-const String _kCreateSub = '__create_subcategory__';
 
 /// Log an activity: pick a category, name it, optionally record how long you
 /// spent and on which day/time. Pass [existing] to edit a logged entry instead.
@@ -87,66 +85,12 @@ class _LogScreenState extends State<LogScreen> {
     return hex.isEmpty ? fallback : colorFromHex(hex);
   }
 
-  /// Create a subcategory in place (name + optional colour), persist it on the
-  /// category, then auto-select it. Used by the dropdown's "Create new…" item.
+  /// Create a subcategory in place, persist it on the category, then
+  /// auto-select it. Used by the dropdown's "Create new…" item.
   Future<void> _createSubcategory(AxisDef axis) async {
-    final nameController = TextEditingController();
-    var colorHex = ''; // empty = inherit the category colour
-    final created = await showDialog<bool>(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          title: Text('New subcategory · ${axis.label}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: nameController,
-                autofocus: true,
-                decoration: const InputDecoration(hintText: 'Name'),
-                onSubmitted: (_) => Navigator.pop(context, true),
-              ),
-              const SizedBox(height: 16),
-              const Text('Colour (optional)'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  _ColorDot(
-                    color: colorFromHex(axis.colorHex),
-                    selected: colorHex.isEmpty,
-                    icon: Icons.format_color_reset,
-                    onTap: () => setLocal(() => colorHex = ''),
-                  ),
-                  ...kAxisPalette.map((hex) => _ColorDot(
-                        color: colorFromHex(hex),
-                        selected: colorHex == hex,
-                        onTap: () => setLocal(() => colorHex = hex),
-                      )),
-                ],
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel')),
-            FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Create')),
-          ],
-        ),
-      ),
-    );
-    if (created != true) return;
-    final name = nameController.text.trim();
-    if (name.isEmpty) return;
-    if (axis.subcategoryByName(name) == null) {
-      await widget.repo.addSubcategory(axis.key, SubcategoryDef(name, colorHex));
-    }
-    if (!mounted) return;
+    final name = await showCreateSubcategoryDialog(
+        context: context, repo: widget.repo, axis: axis);
+    if (name == null || !mounted) return;
     setState(() {
       _axes = widget.repo.axesConfig; // pick up the new subcategory
       _selectedSub = name; // auto-select it
@@ -373,7 +317,7 @@ class _LogScreenState extends State<LogScreen> {
                           ]),
                         )),
                     const DropdownMenuItem<String?>(
-                      value: _kCreateSub,
+                      value: kCreateSubcategory,
                       child: Row(children: [
                         Icon(Icons.add, size: 16),
                         SizedBox(width: 8),
@@ -382,7 +326,7 @@ class _LogScreenState extends State<LogScreen> {
                     ),
                   ],
                   onChanged: (v) {
-                    if (v == _kCreateSub) {
+                    if (v == kCreateSubcategory) {
                       _createSubcategory(axis);
                       return;
                     }
@@ -491,37 +435,6 @@ class _ActivityCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A selectable colour swatch used by the "create subcategory" dialog.
-class _ColorDot extends StatelessWidget {
-  final Color color;
-  final bool selected;
-  final IconData? icon;
-  final VoidCallback onTap;
-  const _ColorDot({
-    required this.color,
-    required this.selected,
-    required this.onTap,
-    this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: CircleAvatar(
-        backgroundColor: color,
-        radius: 18,
-        child: selected
-            ? const Icon(Icons.check, size: 18, color: Colors.white)
-            : (icon != null
-                ? Icon(icon, size: 18, color: Colors.white)
-                : null),
       ),
     );
   }

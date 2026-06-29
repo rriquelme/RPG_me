@@ -8,6 +8,18 @@ import '../local/local_engine.dart';
 import '../local/timer_entry.dart';
 import '../models.dart';
 import '../repository.dart';
+import '../widgets/subcategory_dialogs.dart';
+
+/// Mutable selection state shared with the New/Edit timer dialog fields.
+class _DialogSel {
+  List<AxisDef> axes;
+  String axisKey;
+  String? subKey;
+  _DialogSel(this.axes, this.axisKey, [this.subKey]);
+
+  AxisDef get axis =>
+      axes.firstWhere((a) => a.key == axisKey, orElse: () => axes.first);
+}
 
 /// A list of stopwatches you can run at the same time. Each banks time against
 /// a category; "Stop & save" logs the elapsed time as a session.
@@ -59,10 +71,83 @@ class _TimersScreenState extends State<TimersScreen> {
     return '$base.$millis';
   }
 
+  /// The category dropdown shared by the New/Edit timer dialogs.
+  Widget _categoryField(_DialogSel st, StateSetter setLocal) {
+    return DropdownButtonFormField<String>(
+      value: st.axisKey,
+      decoration: const InputDecoration(labelText: 'Category'),
+      items: st.axes
+          .map((a) => DropdownMenuItem(
+                value: a.key,
+                child: Row(children: [
+                  Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
+                  const SizedBox(width: 8),
+                  Text(a.label),
+                ]),
+              ))
+          .toList(),
+      onChanged: (v) => setLocal(() {
+        st.axisKey = v ?? st.axisKey;
+        st.subKey = null; // subcategories are per-category
+      }),
+    );
+  }
+
+  /// The subcategory dropdown shared by the dialogs — None, then the
+  /// subcategories, then "Create new…" (same behaviour as the Log screen).
+  Widget _subcategoryField(_DialogSel st, StateSetter setLocal) {
+    final axis = st.axis;
+    Color colorOf(SubcategoryDef s) => s.colorHex.isNotEmpty
+        ? colorFromHex(s.colorHex)
+        : colorFromHex(axis.colorHex);
+    return DropdownButtonFormField<String?>(
+      value: st.subKey,
+      decoration: const InputDecoration(labelText: 'Subcategory'),
+      items: [
+        const DropdownMenuItem<String?>(value: null, child: Text('None')),
+        ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
+              value: s.name,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Container(width: 12, height: 12, color: colorOf(s)),
+                const SizedBox(width: 8),
+                Text(s.name),
+                if (s.hidden) ...[
+                  const SizedBox(width: 6),
+                  Icon(Icons.visibility_off_outlined,
+                      size: 14, color: Theme.of(context).disabledColor),
+                ],
+              ]),
+            )),
+        const DropdownMenuItem<String?>(
+          value: kCreateSubcategory,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.add, size: 16),
+            SizedBox(width: 8),
+            Text('Create new…'),
+          ]),
+        ),
+      ],
+      onChanged: (v) async {
+        if (v == kCreateSubcategory) {
+          final created = await showCreateSubcategoryDialog(
+              context: context, repo: widget.repo, axis: axis);
+          if (created != null) {
+            setLocal(() {
+              st.axes = widget.repo.axesConfig; // pick up the new subcategory
+              st.subKey = created;
+            });
+          }
+          return;
+        }
+        setLocal(() => st.subKey = v);
+      },
+    );
+  }
+
   Future<void> _add() async {
     final axes = widget.repo.axesConfig;
     if (axes.isEmpty) return;
-    String axisKey = axes.first.key;
+    final st = _DialogSel(axes, axes.first.key);
     final nameController = TextEditingController();
     final created = await showDialog<bool>(
       context: context,
@@ -72,21 +157,9 @@ class _TimersScreenState extends State<TimersScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
-                value: axisKey,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: axes
-                    .map((a) => DropdownMenuItem(
-                          value: a.key,
-                          child: Row(children: [
-                            Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
-                            const SizedBox(width: 8),
-                            Text(a.label),
-                          ]),
-                        ))
-                    .toList(),
-                onChanged: (v) => setLocal(() => axisKey = v ?? axisKey),
-              ),
+              _categoryField(st, setLocal),
+              const SizedBox(height: 12),
+              _subcategoryField(st, setLocal),
               const SizedBox(height: 12),
               TextField(
                 controller: nameController,
@@ -109,12 +182,13 @@ class _TimersScreenState extends State<TimersScreen> {
     );
     if (created == true) {
       var name = nameController.text.trim();
-      if (name.isEmpty) name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
+      if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
       setState(() {
         _timers.add(TimerEntry(
           id: TimerEntry.newId(),
           label: name,
-          axisKey: axisKey,
+          axisKey: st.axisKey,
+          subcategory: st.subKey ?? '',
           runningSince: DateTime.now(),
         ));
       });
@@ -132,11 +206,19 @@ class _TimersScreenState extends State<TimersScreen> {
     await _persist();
   }
 
-  /// Change a (possibly running) timer's category and/or name — keeps elapsed.
+  /// Change a (possibly running) timer's category, subcategory and/or name —
+  /// keeps elapsed.
   Future<void> _edit(TimerEntry t) async {
     final axes = widget.repo.axesConfig;
-    String axisKey = axes.any((a) => a.key == t.axisKey) ? t.axisKey
+    final axisKey = axes.any((a) => a.key == t.axisKey)
+        ? t.axisKey
         : (axes.isNotEmpty ? axes.first.key : t.axisKey);
+    final st = _DialogSel(axes, axisKey);
+    final startAxis = _axisOf(axisKey);
+    if (t.subcategory.isNotEmpty &&
+        (startAxis?.subcategoryNames.contains(t.subcategory) ?? false)) {
+      st.subKey = t.subcategory;
+    }
     final nameController = TextEditingController(text: t.label);
     final ok = await showDialog<bool>(
       context: context,
@@ -146,21 +228,9 @@ class _TimersScreenState extends State<TimersScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
-                value: axisKey,
-                decoration: const InputDecoration(labelText: 'Category'),
-                items: axes
-                    .map((a) => DropdownMenuItem(
-                          value: a.key,
-                          child: Row(children: [
-                            Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
-                            const SizedBox(width: 8),
-                            Text(a.label),
-                          ]),
-                        ))
-                    .toList(),
-                onChanged: (v) => setLocal(() => axisKey = v ?? axisKey),
-              ),
+              _categoryField(st, setLocal),
+              const SizedBox(height: 12),
+              _subcategoryField(st, setLocal),
               const SizedBox(height: 12),
               TextField(
                 controller: nameController,
@@ -177,9 +247,10 @@ class _TimersScreenState extends State<TimersScreen> {
     );
     if (ok == true) {
       var name = nameController.text.trim();
-      if (name.isEmpty) name = (_axisOf(axisKey)?.label ?? axisKey).toLowerCase();
+      if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
       setState(() {
-        t.axisKey = axisKey;
+        t.axisKey = st.axisKey;
+        t.subcategory = st.subKey ?? '';
         t.label = name;
       });
       await _persist();
@@ -214,7 +285,8 @@ class _TimersScreenState extends State<TimersScreen> {
       ),
     );
     if (choice == 'save') {
-      await widget.repo.log(t.axisKey, t.label, seconds: seconds);
+      await widget.repo.log(t.axisKey, t.label,
+          seconds: seconds, subcategory: t.subcategory);
       setState(() => _timers.remove(t));
       await _persist();
       if (mounted) {
@@ -295,7 +367,9 @@ class _TimersScreenState extends State<TimersScreen> {
                     ),
                   ),
                   Text(
-                    '${axis?.label ?? t.axisKey} · ${t.isRunning ? "running" : "paused"}',
+                    '${axis?.label ?? t.axisKey}'
+                    '${t.subcategory.isNotEmpty ? " › ${t.subcategory}" : ""}'
+                    ' · ${t.isRunning ? "running" : "paused"}',
                     style: theme.textTheme.bodySmall,
                   ),
                   IconButton(

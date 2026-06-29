@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.23
+
+- **Timers get subcategories** — the New/Edit timer dialogs now have a
+  Subcategory picker just like the Log screen (None by default, then the
+  subcategories, then **Create new…**). The chosen subcategory is saved with the
+  session when you stop the timer, and shows on the timer card.
+- **“All subcategories (inc. hidden)”** — the Activity screen's *By subcategory*
+  dropdown adds this option after *All subcategories*, so you can see the
+  dominant-by-day view including hidden subcategories.
+
 ## What's new in 0.22
 
 - **Log screen dashboard: one chart, switched by the picker** — the Subcategory
