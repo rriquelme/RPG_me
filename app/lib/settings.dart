@@ -1,33 +1,44 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Persisted app settings: the API base URL (for optional sync), the user, and
-/// the home octagon view preferences (period window + average-per-day).
+/// Persisted app settings: the API base URL (for optional sync), the user, the
+/// home octagon view preferences (period + average-per-day), and the first day
+/// of the week.
 class Settings {
   static const _kBaseUrl = 'base_url';
   static const _kUser = 'user';
   static const _kPeriod = 'octagon_period';
   static const _kAverage = 'octagon_average';
+  static const _kFirstDay = 'first_day_of_week';
 
   final String baseUrl;
   final String user;
   final String period; // see OctagonPeriod keys
   final bool averagePerDay;
+  final int firstDayOfWeek; // DateTime.monday(1)..DateTime.sunday(7)
 
   const Settings({
     required this.baseUrl,
     required this.user,
-    this.period = 'last_30',
+    this.period = 'this_week',
     this.averagePerDay = false,
+    this.firstDayOfWeek = DateTime.monday,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
 
-  Settings copyWith({String? baseUrl, String? user, String? period, bool? averagePerDay}) =>
+  Settings copyWith({
+    String? baseUrl,
+    String? user,
+    String? period,
+    bool? averagePerDay,
+    int? firstDayOfWeek,
+  }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
         user: user ?? this.user,
         period: period ?? this.period,
         averagePerDay: averagePerDay ?? this.averagePerDay,
+        firstDayOfWeek: firstDayOfWeek ?? this.firstDayOfWeek,
       );
 
   static Future<Settings> load() async {
@@ -35,8 +46,9 @@ class Settings {
     return Settings(
       baseUrl: prefs.getString(_kBaseUrl) ?? '',
       user: prefs.getString(_kUser) ?? 'me',
-      period: prefs.getString(_kPeriod) ?? 'last_30',
+      period: prefs.getString(_kPeriod) ?? 'this_week',
       averagePerDay: prefs.getBool(_kAverage) ?? false,
+      firstDayOfWeek: prefs.getInt(_kFirstDay) ?? DateTime.monday,
     );
   }
 
@@ -53,6 +65,11 @@ class Settings {
     await prefs.setString(_kPeriod, period);
     await prefs.setBool(_kAverage, averagePerDay);
   }
+
+  static Future<void> saveFirstDayOfWeek(int day) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_kFirstDay, day);
+  }
 }
 
 /// The selectable windows for the home octagon.
@@ -62,6 +79,7 @@ class OctagonPeriod {
   const OctagonPeriod(this.key, this.label);
 
   static const all = [
+    OctagonPeriod('this_week', 'This week'),
     OctagonPeriod('last_7', 'Last 7 days'),
     OctagonPeriod('this_month', 'This month'),
     OctagonPeriod('last_30', 'Last 30 days'),
@@ -71,10 +89,14 @@ class OctagonPeriod {
   ];
 
   /// Inclusive start datetime for a period key, or null for all-time.
-  static DateTime? since(String key) {
+  /// "This week" starts on [firstDayOfWeek] (DateTime.monday..sunday).
+  static DateTime? since(String key, {int firstDayOfWeek = DateTime.monday}) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     switch (key) {
+      case 'this_week':
+        final delta = (today.weekday - firstDayOfWeek + 7) % 7;
+        return today.subtract(Duration(days: delta));
       case 'last_7':
         return today.subtract(const Duration(days: 6));
       case 'this_month':
@@ -92,5 +114,16 @@ class OctagonPeriod {
   }
 
   static String labelFor(String key) =>
-      all.firstWhere((p) => p.key == key, orElse: () => all[2]).label;
+      all.firstWhere((p) => p.key == key, orElse: () => all[0]).label;
 }
+
+/// Weekday names for the "first day of week" setting (index 1..7 = Mon..Sun).
+const Map<int, String> kWeekdayNames = {
+  DateTime.monday: 'Monday',
+  DateTime.tuesday: 'Tuesday',
+  DateTime.wednesday: 'Wednesday',
+  DateTime.thursday: 'Thursday',
+  DateTime.friday: 'Friday',
+  DateTime.saturday: 'Saturday',
+  DateTime.sunday: 'Sunday',
+};

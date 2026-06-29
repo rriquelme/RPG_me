@@ -40,6 +40,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _setFirstDay(int day) async {
+    await Settings.saveFirstDayOfWeek(day);
+    await widget.repo.updateSettings(widget.repo.settings.copyWith(firstDayOfWeek: day));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,6 +53,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Text('Week', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              const Expanded(child: Text('First day of the week')),
+              DropdownButton<int>(
+                value: widget.repo.settings.firstDayOfWeek,
+                items: kWeekdayNames.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                    .toList(),
+                onChanged: (v) => v == null ? null : _setFirstDay(v),
+              ),
+            ],
+          ),
+          const Text(
+            'Used by the “This week” view and the activity heatmap.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const Divider(height: 40),
           Text('API settings', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           const Text(

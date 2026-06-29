@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.12
+
+- **Edit a running timer's category** (and name) — keeps the elapsed time.
+- **Minimum categories lowered to 3** (3–10).
+- **"This week"** octagon period (since your week's first day), and a
+  **first-day-of-week** setting (Mon–Sun) in Settings.
+- **Heatmap split by month** — an empty column between months with the month
+  name on top; weekday labels follow your first-day-of-week; auto-scrolls to
+  the most recent week.
+
 ## What's new in 0.11
 
 - **Edit categories** moved back to the ⋮ menu (renamed from "Edit axes").

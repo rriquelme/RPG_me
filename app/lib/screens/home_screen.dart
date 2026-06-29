@@ -48,7 +48,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final repo = _repo;
     if (repo == null) return;
-    final since = OctagonPeriod.since(repo.settings.period);
+    final since = OctagonPeriod.since(repo.settings.period,
+        firstDayOfWeek: repo.settings.firstDayOfWeek);
     final summary = await repo.summary();
     final view = repo.octagonView(since);
     if (mounted) {
