@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.27
+
+- **Percentage respects Avg / day** now (like the other metrics), instead of
+  ignoring it.
+- **"Now" jump** — when you've navigated the octagon window into the past, a
+  **Now** link appears under the ‹ › label; tapping it brings the window back to
+  the present (today / current week / month / year, or re-anchors a custom day
+  or range to include today).
+
 ## What's new in 0.26
 
 - **Reworked octagon period picker + always-on navigation.** The dropdown is now

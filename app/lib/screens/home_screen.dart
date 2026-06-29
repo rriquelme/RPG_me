@@ -153,6 +153,27 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
+  /// Jump the window back to the present (the one that includes today): offset 0
+  /// for the calendar periods, re-anchored to today for the custom ones.
+  void _resetToPresent() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    setState(() {
+      if (_periodKey == 'custom_day') {
+        _customStart = today;
+        _customEnd = today;
+      } else if (_periodKey == 'custom_range' &&
+          _customStart != null &&
+          _customEnd != null) {
+        final span = _customEnd!.difference(_customStart!).inDays + 1;
+        _customEnd = today;
+        _customStart = today.subtract(Duration(days: span - 1));
+      }
+      _navOffset = 0;
+    });
+    _reload();
+  }
+
   Future<void> _pickCustomDay() async {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -334,11 +355,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<RadarPoint> _points(OctagonView v, bool average) {
-    // Percentage is already an average — avg/day doesn't divide it.
-    final divisible = average && _metric != OctagonMetric.percentage;
     return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key);
-      if (divisible && v.days > 0) value = value / v.days;
+      if (average && v.days > 0) value = value / v.days;
       return RadarPoint(
         axisKey: a.key,
         label: a.label,
@@ -380,8 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final s = (v % 1 == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
         return '$s$suffix';
       case OctagonMetric.percentage:
-        // Percentage ignores avg/day (it's already an average).
-        return '${v.toStringAsFixed(0)}%';
+        return '${v.toStringAsFixed(average ? 1 : 0)}%$suffix';
     }
   }
 
@@ -530,10 +548,23 @@ class _HomeScreenState extends State<HomeScreen> {
           onPressed: _navigable ? () => _shift(-1) : null,
         ),
         Flexible(
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              // Shown only when the window is in the past — jumps to now.
+              if (_canForward)
+                InkWell(
+                  onTap: _resetToPresent,
+                  child: Text('Now',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary)),
+                ),
+            ],
           ),
         ),
         IconButton(
