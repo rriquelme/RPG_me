@@ -27,6 +27,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # 'true' when a release keystore secret is configured (enables consistent
+      # signing so the app updates in place instead of needing a reinstall).
+      HAS_SIGNING: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -81,9 +85,59 @@ jobs:
           GRADLE
           fi
 
+      # Sign release builds with a stable key so the app updates in place (and
+      # keeps its data) instead of needing an uninstall. Only runs when the
+      # ANDROID_KEYSTORE_* secrets are set; otherwise the build is debug-signed.
+      - name: Configure release signing
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        working-directory: app
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=release-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+          python3 - <<'PY'
+          p = 'android/app/build.gradle.kts'
+          s = open(p).read()
+          s = ('import java.util.Properties\n'
+               'import java.io.FileInputStream\n\n') + s
+          props = (
+              'val keystoreProperties = Properties()\n'
+              'val keystorePropertiesFile = rootProject.file("key.properties")\n'
+              'if (keystorePropertiesFile.exists()) { '
+              'keystoreProperties.load(FileInputStream(keystorePropertiesFile)) }\n\n')
+          s = s.replace('android {', props + 'android {', 1)
+          signing = (
+              '\n    signingConfigs {\n'
+              '        create("release") {\n'
+              '            keyAlias = keystoreProperties["keyAlias"] as String?\n'
+              '            keyPassword = keystoreProperties["keyPassword"] as String?\n'
+              '            storeFile = keystoreProperties["storeFile"]?.let { file(it) }\n'
+              '            storePassword = keystoreProperties["storePassword"] as String?\n'
+              '        }\n'
+              '    }\n')
+          s = s.replace('android {', 'android {' + signing, 1)
+          s = s.replace('signingConfigs.getByName("debug")',
+                        'signingConfigs.getByName("release")')
+          open(p, 'w').write(s)
+          print('Release signing configured.')
+          PY
+
       - name: Install packages
         working-directory: app
         run: flutter pub get
+
+      - name: Generate launcher icons
+        working-directory: app
+        run: dart run flutter_launcher_icons
 
       - name: Run tests
         working-directory: app
@@ -113,10 +167,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]') }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.31.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.32.0' }}
           target_commitish: ${{ github.sha }}
           files: app/rpg_me.apk
-          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.31.0' }}
+          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.32.0' }}
           body: |
             **Offline-first RPG_me — Android app.**
 

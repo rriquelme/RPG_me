@@ -26,6 +26,40 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.32
+
+- **New app icon** — the octagon chart itself (coloured vertices on a slate
+  rounded tile), generated via `flutter_launcher_icons`.
+- **Optional in-place updates** — the release workflow can now sign every build
+  with a stable key, so installing a new version updates over the old one and
+  keeps your data (no uninstall). It activates when you add the
+  `ANDROID_KEYSTORE_*` repository secrets; otherwise builds stay debug-signed.
+  See *Updatable (signed) releases* below.
+
+## Updatable (signed) releases
+
+By default the APK is debug-signed, so Android makes you uninstall (losing data)
+to install a newer one. To get **in-place updates that keep your data**, sign
+every release with one stable key:
+
+1. Create a keystore (once), answering the prompts:
+   ```bash
+   keytool -genkey -v -keystore rpgme-release.jks -keyalg RSA -keysize 2048 \
+     -validity 10000 -alias rpgme
+   ```
+2. Base64-encode it: `base64 -w0 rpgme-release.jks` (macOS: `base64 -i …`).
+3. In the GitHub repo → **Settings → Secrets and variables → Actions**, add:
+   - `ANDROID_KEYSTORE_BASE64` — the base64 string from step 2
+   - `ANDROID_KEYSTORE_PASSWORD` — the keystore password
+   - `ANDROID_KEY_PASSWORD` — the key password (often the same)
+   - `ANDROID_KEY_ALIAS` — `rpgme`
+4. Re-run a release. From then on, every APK is signed with that key.
+
+> The **first** signed build still differs from the old debug-signed app, so
+> that one switch needs a one-time uninstall (back up via *Export logs* first).
+> Every release after that updates in place. Keep the keystore safe — losing it
+> means future updates can't install over the signed app.
+
 ## What's new in 0.31
 
 - The top **+** on the home screen now logs directly (same as the Log button).
@@ -370,8 +404,9 @@ git checkout -- pubspec.yaml lib/main.dart
 sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' \
   android/app/build.gradle.kts 2>/dev/null || true
 
-# 3. Fetch packages and build
+# 3. Fetch packages, generate the launcher icon, and build
 flutter pub get
+dart run flutter_launcher_icons   # writes the octagon launcher icon
 flutter test                 # runs the model tests
 flutter build apk --release  # -> build/app/outputs/flutter-apk/app-release.apk
 ```
