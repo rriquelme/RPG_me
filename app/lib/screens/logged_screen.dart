@@ -126,7 +126,8 @@ class _LoggedScreenState extends State<LoggedScreen> {
   @override
   Widget build(BuildContext context) {
     final events = _visible();
-    final axis = _filterAxis == null ? null : _axisOf(_filterAxis);
+    final filterAxis = _filterAxis;
+    final axis = filterAxis == null ? null : _axisOf(filterAxis);
     final dateActive = _from != null && _to != null;
     return Scaffold(
       appBar: AppBar(title: Text('Logged activities (${events.length})')),
