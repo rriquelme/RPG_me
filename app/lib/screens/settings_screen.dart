@@ -115,6 +115,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setOctagonScale(String scale) async {
+    await Settings.saveOctagonScale(scale);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(octagonScale: scale));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -202,6 +209,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'next to Save).'),
             value: widget.repo.settings.showAddSubcategoryButton,
             onChanged: _setAddSubcategoryButton,
+          ),
+          const Divider(height: 40),
+          Text('Octagon', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text(
+            'How values map to distance from the centre — for trying out the '
+            'chart’s feel.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'linear', label: Text('Linear')),
+              ButtonSegment(value: 'log', label: Text('Log')),
+              ButtonSegment(value: 'exp', label: Text('Exp')),
+            ],
+            selected: {widget.repo.settings.octagonScale},
+            onSelectionChanged: (s) => _setOctagonScale(s.first),
           ),
           const Divider(height: 40),
           Text('Activity', style: Theme.of(context).textTheme.titleMedium),

@@ -355,6 +355,17 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  OctagonScale _octagonScale(String key) {
+    switch (key) {
+      case 'log':
+        return OctagonScale.logarithmic;
+      case 'exp':
+        return OctagonScale.exponential;
+      default:
+        return OctagonScale.linear;
+    }
+  }
+
   List<RadarPoint> _points(OctagonView v, bool average) {
     return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key);
@@ -533,6 +544,7 @@ class _HomeScreenState extends State<HomeScreen> {
           points: _points(octView, average),
           formatValue: (v) => _formatValue(v, average),
           onTapAxis: _logForCategory,
+          scale: _octagonScale(repo.settings.octagonScale),
         ),
         const SizedBox(height: 12),
         _periodNav(context),

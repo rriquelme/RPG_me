@@ -16,6 +16,7 @@ class Settings {
   static const _kAddCatBtn = 'show_add_category_button';
   static const _kAddSubBtn = 'show_add_subcategory_button';
   static const _kDayNumbers = 'show_day_numbers';
+  static const _kOctagonScale = 'octagon_scale';
 
   final String baseUrl;
   final String user;
@@ -29,6 +30,7 @@ class Settings {
   final bool showAddCategoryButton; // bottom +Category button
   final bool showAddSubcategoryButton; // bottom +Subcategory button
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
+  final String octagonScale; // 'linear' | 'log' | 'exp'
 
   const Settings({
     required this.baseUrl,
@@ -43,6 +45,7 @@ class Settings {
     this.showAddCategoryButton = false,
     this.showAddSubcategoryButton = false,
     this.showDayNumbers = false,
+    this.octagonScale = 'linear',
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -60,6 +63,7 @@ class Settings {
     bool? showAddCategoryButton,
     bool? showAddSubcategoryButton,
     bool? showDayNumbers,
+    String? octagonScale,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -76,6 +80,7 @@ class Settings {
         showAddSubcategoryButton:
             showAddSubcategoryButton ?? this.showAddSubcategoryButton,
         showDayNumbers: showDayNumbers ?? this.showDayNumbers,
+        octagonScale: octagonScale ?? this.octagonScale,
       );
 
   static Future<Settings> load() async {
@@ -93,7 +98,13 @@ class Settings {
       showAddCategoryButton: prefs.getBool(_kAddCatBtn) ?? false,
       showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
+      octagonScale: prefs.getString(_kOctagonScale) ?? 'linear',
     );
+  }
+
+  static Future<void> saveOctagonScale(String scale) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kOctagonScale, scale);
   }
 
   static Future<void> saveBool(String key, bool value) async {

@@ -17,7 +17,10 @@ class RadarPoint {
   });
 }
 
-/// The octagon: a 3–10 axis radar chart drawn so each axis uses the colour set
+/// How a value maps to its distance from the centre.
+enum OctagonScale { linear, logarithmic, exponential }
+
+/// The octagon: a 1–15 axis radar chart drawn so each axis uses the colour set
 /// for it in Settings (coloured vertices + labels). Tapping toward an axis
 /// fires [onTapAxis] with that axis key.
 class OctagonChart extends StatelessWidget {
@@ -28,11 +31,15 @@ class OctagonChart extends StatelessWidget {
 
   final void Function(String axisKey)? onTapAxis;
 
+  /// How normalized values map to radius (for visual testing).
+  final OctagonScale scale;
+
   const OctagonChart({
     super.key,
     required this.points,
     required this.formatValue,
     this.onTapAxis,
+    this.scale = OctagonScale.linear,
   });
 
   int? _nearestAxis(Offset p, double side) {
@@ -78,6 +85,7 @@ class OctagonChart extends StatelessWidget {
               lineColor: theme.colorScheme.primary,
               labelStyle: theme.textTheme.labelSmall ?? const TextStyle(fontSize: 11),
               formatValue: formatValue,
+              scale: scale,
             ),
           );
           if (onTapAxis != null) {
@@ -105,6 +113,7 @@ class _OctagonPainter extends CustomPainter {
   final Color lineColor;
   final TextStyle labelStyle;
   final String Function(double) formatValue;
+  final OctagonScale scale;
 
   _OctagonPainter({
     required this.points,
@@ -114,7 +123,21 @@ class _OctagonPainter extends CustomPainter {
     required this.lineColor,
     required this.labelStyle,
     required this.formatValue,
+    required this.scale,
   });
+
+  /// Map a normalized value [0,1] to a radius fraction [0,1] per [scale].
+  double _scaled(double t) {
+    t = t.clamp(0.0, 1.0);
+    switch (scale) {
+      case OctagonScale.linear:
+        return t;
+      case OctagonScale.logarithmic:
+        return math.log(1 + 9 * t) / math.log(10); // concave: lifts small values
+      case OctagonScale.exponential:
+        return (math.pow(10, t).toDouble() - 1) / 9; // convex: suppresses small
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -151,7 +174,7 @@ class _OctagonPainter extends CustomPainter {
     final dataPath = Path();
     final dataPoints = <Offset>[];
     for (var i = 0; i < n; i++) {
-      final ratio = (points[i].value / ceiling).clamp(0.0, 1.0);
+      final ratio = _scaled(points[i].value / ceiling);
       final p = vertex(i, radius * ratio);
       dataPoints.add(p);
       i == 0 ? dataPath.moveTo(p.dx, p.dy) : dataPath.lineTo(p.dx, p.dy);
@@ -195,5 +218,8 @@ class _OctagonPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _OctagonPainter old) =>
-      old.points != points || old.ceiling != ceiling || old.lineColor != lineColor;
+      old.points != points ||
+      old.ceiling != ceiling ||
+      old.lineColor != lineColor ||
+      old.scale != scale;
 }

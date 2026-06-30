@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.35
+
+- **Octagon scale switch** — Settings → *Octagon* lets you map values to the
+  chart **Linear**, **Log**, or **Exp**, so you can try each feel. Log lifts
+  small values toward the edge; Exp pushes them toward the centre.
+
 ## What's new in 0.34
 
 - **Categories range is now 1–15** (was 3–10). With 1–2 categories the octagon
