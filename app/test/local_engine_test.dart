@@ -155,25 +155,48 @@ void main() {
     expect(sd.dominant[k], 'gym');
   });
 
-  test('numberByAxis sums and percentAvgByAxis averages per axis', () {
-    Event e({required String axis, double? number, double? percentage}) => Event(
-        id: Event.newId(),
-        axisKey: axis,
-        name: 'x',
-        exp: 10,
-        timestamp: DateTime.now(),
-        number: number,
-        percentage: percentage);
+  test('numberByAxis sums and percentByAxis sums / latest-wins per axis', () {
+    Event e(
+            {required String axis,
+            double? number,
+            double? percentage,
+            DateTime? at}) =>
+        Event(
+            id: Event.newId(),
+            axisKey: axis,
+            name: 'x',
+            exp: 10,
+            timestamp: at ?? DateTime.now(),
+            number: number,
+            percentage: percentage);
     final eng = LocalEngine([
-      e(axis: 'health', number: 10, percentage: 50),
-      e(axis: 'health', number: 5, percentage: 100),
+      e(axis: 'health', number: 10, percentage: 30, at: DateTime(2026, 1, 1)),
+      e(axis: 'health', number: 5, percentage: 40, at: DateTime(2026, 1, 2)),
       e(axis: 'health'), // neither tracked — ignored by both
       e(axis: 'mind', number: 3),
     ]);
     expect(eng.numberByAxis()['health'], 15);
     expect(eng.numberByAxis()['mind'], 3);
-    expect(eng.percentAvgByAxis()['health'], 75); // (50 + 100) / 2
-    expect(eng.percentAvgByAxis().containsKey('mind'), false); // no percentages
+    // sum mode adds every percentage (capped at 100).
+    expect(eng.percentByAxis(mode: 'sum')['health'], 70); // 30 + 40
+    expect(eng.percentByAxis(mode: 'sum').containsKey('mind'), false);
+    // latest mode keeps the most recent record's percentage.
+    expect(eng.percentByAxis(mode: 'latest')['health'], 40);
+  });
+
+  test('percentByAxis sum caps at 100', () {
+    Event e(double p, DateTime at) => Event(
+        id: Event.newId(),
+        axisKey: 'health',
+        name: 'x',
+        exp: 10,
+        timestamp: at,
+        percentage: p);
+    final eng = LocalEngine([
+      e(60, DateTime(2026, 1, 1)),
+      e(70, DateTime(2026, 1, 2)),
+    ]);
+    expect(eng.percentByAxis(mode: 'sum')['health'], 100); // 130 capped
   });
 
   test('countByAxis/timeTotals honor a since..until window', () {

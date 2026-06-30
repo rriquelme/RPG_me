@@ -207,7 +207,11 @@ class Repository {
       exp: _engine.expByAxis(since: since, until: until, excludeHidden: true),
       counts: _engine.countByAxis(since: since, until: until, excludeHidden: true),
       numbers: _engine.numberByAxis(since: since, until: until, excludeHidden: true),
-      percentAvg: _engine.percentAvgByAxis(since: since, until: until, excludeHidden: true),
+      percentAvg: _engine.percentByAxis(
+          mode: settings.percentageMode,
+          since: since,
+          until: until,
+          excludeHidden: true),
       days: days,
     );
   }

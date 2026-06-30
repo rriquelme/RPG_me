@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.38
+
+- **Percentage axis: choose Sum or Last wins.** The percentage metric used to be
+  *averaged*, so a second log of the same value never moved the axis. Settings →
+  *Extra metrics* (with *Track percentage* on) now has a **Sum / Last wins**
+  switch: **Sum** adds every percentage entry for a category (capped at 100%),
+  **Last wins** shows the most recent entry. The percentage axis no longer
+  applies *Avg / day* (it's an absolute %, not a per-day rate). Default is
+  **Sum**.
+
 ## What's new in 0.37
 
 - **Sort & filter your Logged activities** — the *Logged activities* screen now

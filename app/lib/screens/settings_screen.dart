@@ -87,6 +87,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setPercentageMode(String mode) async {
+    await Settings.savePercentageMode(mode);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(percentageMode: mode));
+    setState(() {});
+  }
+
   Future<void> _setLogButton(bool on) async {
     await Settings.saveBool(Settings.kLogBtnKey, on);
     await widget.repo
@@ -178,10 +185,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: const Text('Track percentage'),
-            subtitle: const Text('A 0–100% per log (averaged on the octagon).'),
+            subtitle: const Text('A 0–100% per log, shown on the octagon.'),
             value: widget.repo.settings.trackPercentage,
             onChanged: _setTrackPercentage,
           ),
+          if (widget.repo.settings.trackPercentage) ...[
+            const Padding(
+              padding: EdgeInsets.only(top: 4, bottom: 8),
+              child: Text(
+                'How multiple percentage logs combine on the octagon: '
+                'Sum adds them up (capped at 100%); Last wins shows the most '
+                'recent entry.',
+                style: TextStyle(fontSize: 13),
+              ),
+            ),
+            SegmentedButton<String>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: 'sum', label: Text('Sum')),
+                ButtonSegment(value: 'latest', label: Text('Last wins')),
+              ],
+              selected: {widget.repo.settings.percentageMode},
+              onSelectionChanged: (s) => _setPercentageMode(s.first),
+            ),
+          ],
           const Divider(height: 40),
           Text('Add buttons', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),

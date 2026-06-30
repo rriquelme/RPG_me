@@ -17,6 +17,7 @@ class Settings {
   static const _kAddSubBtn = 'show_add_subcategory_button';
   static const _kDayNumbers = 'show_day_numbers';
   static const _kOctagonScale = 'octagon_scale';
+  static const _kPercentageMode = 'percentage_mode';
 
   final String baseUrl;
   final String user;
@@ -31,6 +32,7 @@ class Settings {
   final bool showAddSubcategoryButton; // bottom +Subcategory button
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
   final String octagonScale; // 'linear' | 'log' | 'exp'
+  final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
 
   const Settings({
     required this.baseUrl,
@@ -46,6 +48,7 @@ class Settings {
     this.showAddSubcategoryButton = false,
     this.showDayNumbers = false,
     this.octagonScale = 'linear',
+    this.percentageMode = 'sum',
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -64,6 +67,7 @@ class Settings {
     bool? showAddSubcategoryButton,
     bool? showDayNumbers,
     String? octagonScale,
+    String? percentageMode,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -81,6 +85,7 @@ class Settings {
             showAddSubcategoryButton ?? this.showAddSubcategoryButton,
         showDayNumbers: showDayNumbers ?? this.showDayNumbers,
         octagonScale: octagonScale ?? this.octagonScale,
+        percentageMode: percentageMode ?? this.percentageMode,
       );
 
   static Future<Settings> load() async {
@@ -99,7 +104,13 @@ class Settings {
       showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
       octagonScale: prefs.getString(_kOctagonScale) ?? 'linear',
+      percentageMode: prefs.getString(_kPercentageMode) ?? 'sum',
     );
+  }
+
+  static Future<void> savePercentageMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kPercentageMode, mode);
   }
 
   static Future<void> saveOctagonScale(String scale) async {
