@@ -26,6 +26,11 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.36
+
+- **Time spent is now a scroll wheel** — logging time uses a clock/alarm-style
+  **00:00** hours/minutes wheel you scroll, instead of +/- steppers.
+
 ## What's new in 0.35
 
 - **Octagon scale switch** — Settings → *Octagon* lets you map values to the

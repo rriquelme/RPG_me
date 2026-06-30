@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoTimerPicker, CupertinoTimerPickerMode;
 import 'package:flutter/material.dart';
 
 import '../local/event.dart';
@@ -395,12 +396,18 @@ class _LogScreenState extends State<LogScreen> {
               const SizedBox(height: 24),
               Text('Time spent', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),
-              Row(
-                children: [
-                  Expanded(child: _Stepper(label: 'Hours', value: _hours, max: 24, onChanged: (v) => setState(() => _hours = v))),
-                  const SizedBox(width: 12),
-                  Expanded(child: _Stepper(label: 'Minutes', value: _minutes, max: 59, step: 5, onChanged: (v) => setState(() => _minutes = v))),
-                ],
+              // Scroll the hours/minutes wheels like a clock/alarm app.
+              SizedBox(
+                height: 170,
+                child: CupertinoTimerPicker(
+                  mode: CupertinoTimerPickerMode.hm,
+                  initialTimerDuration:
+                      Duration(hours: _hours, minutes: _minutes),
+                  onTimerDurationChanged: (d) => setState(() {
+                    _hours = d.inHours;
+                    _minutes = d.inMinutes % 60;
+                  }),
+                ),
               ),
               Text(
                 _seconds == 0
@@ -489,41 +496,3 @@ class _ActivityCard extends StatelessWidget {
   }
 }
 
-/// A small +/- stepper for hours/minutes.
-class _Stepper extends StatelessWidget {
-  final String label;
-  final int value;
-  final int max;
-  final int step;
-  final ValueChanged<int> onChanged;
-  const _Stepper({
-    required this.label,
-    required this.value,
-    required this.max,
-    required this.onChanged,
-    this.step = 1,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.remove_circle_outline),
-              onPressed: value <= 0 ? null : () => onChanged((value - step).clamp(0, max)),
-            ),
-            Text('$value', style: Theme.of(context).textTheme.titleLarge),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              onPressed: value >= max ? null : () => onChanged((value + step).clamp(0, max)),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
