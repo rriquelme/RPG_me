@@ -195,7 +195,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: Text(
                 'How multiple percentage logs combine on the octagon: '
                 'Sum adds them up (capped at 100%); Last wins shows the most '
-                'recent entry.',
+                'recent entry. With Avg / day on, the axis shows the mean '
+                'contribution per day instead.',
                 style: TextStyle(fontSize: 13),
               ),
             ),

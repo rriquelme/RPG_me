@@ -367,12 +367,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<RadarPoint> _points(OctagonView v, bool average) {
-    // Percentage is a sum-to-100 or latest-wins reading, so the per-day average
-    // doesn't apply to it (unlike counts/seconds/numbers).
-    final perDay = average && _metric != OctagonMetric.percentage;
+    final isPct = _metric == OctagonMetric.percentage;
+    final capSum = isPct && (_repo?.settings.percentageMode ?? 'sum') == 'sum';
     return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key);
-      if (perDay && v.days > 0) value = value / v.days;
+      if (average && v.days > 0) {
+        // Avg / day = mean daily contribution (axis value spread over the
+        // window). Applies to the % axis too — in both Sum and Last-wins modes
+        // — and stays uncapped so the true per-day mean shows.
+        value = value / v.days;
+      } else if (capSum && value > 100) {
+        // Absolute Sum of percentages is capped at 100%.
+        value = 100;
+      }
       return RadarPoint(
         axisKey: a.key,
         label: a.label,
@@ -414,8 +421,8 @@ class _HomeScreenState extends State<HomeScreen> {
         final s = (v % 1 == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
         return '$s$suffix';
       case OctagonMetric.percentage:
-        // Always an absolute %, never a per-day rate.
-        return '${v.toStringAsFixed(0)}%';
+        // Absolute % when off; mean %/day (one decimal) under Avg / day.
+        return '${v.toStringAsFixed(average ? 1 : 0)}%$suffix';
     }
   }
 

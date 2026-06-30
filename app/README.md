@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.39
+
+- **Avg / day now works on the percentage axis** — turning on *Avg / day*
+  shows the **mean contribution per day** for the % axis (axis value ÷ days in
+  the window), in **both Sum and Last wins** modes. It's the *uncapped* mean, so
+  you see the true per-day average even when the absolute Sum is capped at 100%.
+
 ## What's new in 0.38
 
 - **Percentage axis: choose Sum or Last wins.** The percentage metric used to be

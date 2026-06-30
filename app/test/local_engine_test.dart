@@ -184,7 +184,7 @@ void main() {
     expect(eng.percentByAxis(mode: 'latest')['health'], 40);
   });
 
-  test('percentByAxis sum caps at 100', () {
+  test('percentByAxis sum returns the raw total (UI applies the 100% cap)', () {
     Event e(double p, DateTime at) => Event(
         id: Event.newId(),
         axisKey: 'health',
@@ -196,7 +196,9 @@ void main() {
       e(60, DateTime(2026, 1, 1)),
       e(70, DateTime(2026, 1, 2)),
     ]);
-    expect(eng.percentByAxis(mode: 'sum')['health'], 100); // 130 capped
+    // Uncapped so the "Avg / day" view can show the true per-day mean; the
+    // 100% cap for the absolute view is applied in the home screen.
+    expect(eng.percentByAxis(mode: 'sum')['health'], 130);
   });
 
   test('countByAxis/timeTotals honor a since..until window', () {
