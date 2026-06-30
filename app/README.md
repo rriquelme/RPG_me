@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.37
+
+- **Sort & filter your Logged activities** — the *Logged activities* screen now
+  has a filter bar: **sort** by *Newest first*, *Oldest first*, or *By
+  category*; **filter** by **category** and **subcategory**; and pick a **date
+  range** to narrow the list. The title shows the count of matching entries.
+
 ## What's new in 0.36
 
 - **Time spent is now a scroll wheel** — logging time uses a clock/alarm-style
