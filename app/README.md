@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.40
+
+- **Activity filters are now scroll wheels** — the *Category* and *By
+  subcategory* pickers on the Activity screen are alarm-style **scroll wheels**
+  instead of dropdowns, so you can spin through categories and watch the heatmap
+  update as you go (it refreshes a beat after the wheel settles). Picking a new
+  category resets the subcategory wheel to *All subcategories*.
+
 ## What's new in 0.39
 
 - **Avg / day now works on the percentage axis** — turning on *Avg / day*

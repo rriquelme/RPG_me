@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart' show CupertinoPicker;
 import 'package:flutter/material.dart';
 
 import '../local/local_engine.dart';
@@ -35,11 +38,62 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Map<String, int> _subSeconds = {};
   Map<String, Color>? _subDayColors;
   bool _loading = true;
+  // Debounce heavy grid reloads while the category/subcategory wheel is spinning.
+  Timer? _reloadDebounce;
 
   @override
   void initState() {
     super.initState();
     _loadAll();
+  }
+
+  @override
+  void dispose() {
+    _reloadDebounce?.cancel();
+    super.dispose();
+  }
+
+  /// Reload the grids shortly after the wheel settles (keeps a fast fling from
+  /// rebuilding the heatmaps on every tick).
+  void _scheduleReload() {
+    _reloadDebounce?.cancel();
+    _reloadDebounce = Timer(const Duration(milliseconds: 140), () {
+      _loadFiltered();
+      _loadSub();
+    });
+  }
+
+  void _onCategoryWheel(int i) {
+    final key = (i <= 0 || i - 1 >= _axes.length) ? null : _axes[i - 1].key;
+    setState(() {
+      _axisKey = key;
+      _subKey = null; // subcategories are per-category
+    });
+    _scheduleReload();
+  }
+
+  /// One centred row in a picker wheel: an optional colour dot + a label.
+  Widget _wheelRow(String label, {Color? dot, bool hidden = false}) {
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot != null) ...[
+            Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+          if (hidden) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.visibility_off_outlined,
+                size: 14, color: Theme.of(context).disabledColor),
+          ],
+        ],
+      ),
+    );
   }
 
   AxisDef? _axisFor(String? key) {
@@ -145,34 +199,22 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             onSelectionChanged: (s) => setState(() => _metric = s.first),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Text('Category', style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              DropdownButton<String?>(
-                value: _axisKey,
-                items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('All')),
-                  ..._axes.map((a) => DropdownMenuItem<String?>(
-                        value: a.key,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Container(
-                              width: 12, height: 12, color: colorFromHex(a.colorHex)),
-                          const SizedBox(width: 8),
-                          Text(a.label),
-                        ]),
-                      )),
-                ],
-                onChanged: (v) {
-                  setState(() {
-                    _axisKey = v;
-                    _subKey = null; // subcategories are per-category
-                  });
-                  _loadFiltered();
-                  _loadSub();
-                },
-              ),
-            ],
+          Text('Category', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 132,
+            child: CupertinoPicker(
+              itemExtent: 32,
+              magnification: 1.12,
+              squeeze: 1.1,
+              useMagnifier: true,
+              onSelectedItemChanged: _onCategoryWheel,
+              children: [
+                _wheelRow('All'),
+                ..._axes.map((a) =>
+                    _wheelRow(a.label, dot: colorFromHex(a.colorHex))),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           HeatGrid(
@@ -189,44 +231,43 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             const SizedBox(height: 28),
             const Divider(),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Text('By subcategory',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const Spacer(),
-                DropdownButton<String?>(
-                  value: _subKey,
-                  items: [
-                    const DropdownMenuItem<String?>(
-                        value: null, child: Text('All subcategories')),
-                    const DropdownMenuItem<String?>(
-                        value: _kAllIncHidden,
-                        child: Text('All subcategories (inc. hidden)')),
-                    ...subAxis.subcategories.map((s) => DropdownMenuItem<String?>(
-                          value: s.name,
-                          child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Container(
-                                width: 12,
-                                height: 12,
-                                color: _subColor(subAxis, s.name,
-                                    colorFromHex(subAxis.colorHex))),
-                            const SizedBox(width: 8),
-                            Text(s.name),
-                            if (s.hidden) ...[
-                              const SizedBox(width: 6),
-                              Icon(Icons.visibility_off_outlined,
-                                  size: 14,
-                                  color: Theme.of(context).disabledColor),
-                            ],
-                          ]),
-                        )),
-                  ],
-                  onChanged: (v) {
-                    setState(() => _subKey = v);
-                    _loadSub();
-                  },
-                ),
-              ],
+            Text('By subcategory',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 132,
+              // Keyed by category so the wheel resets to "All subcategories"
+              // (index 0) whenever the selected category changes.
+              child: CupertinoPicker(
+                key: ValueKey('sub-$_axisKey'),
+                itemExtent: 32,
+                magnification: 1.12,
+                squeeze: 1.1,
+                useMagnifier: true,
+                onSelectedItemChanged: (i) {
+                  final String? v;
+                  if (i == 0) {
+                    v = null;
+                  } else if (i == 1) {
+                    v = _kAllIncHidden;
+                  } else {
+                    final subs = subAxis.subcategories;
+                    v = (i - 2 < subs.length) ? subs[i - 2].name : null;
+                  }
+                  setState(() => _subKey = v);
+                  _scheduleReload();
+                },
+                children: [
+                  _wheelRow('All subcategories'),
+                  _wheelRow('All subcategories (inc. hidden)'),
+                  ...subAxis.subcategories.map((s) => _wheelRow(
+                        s.name,
+                        dot: _subColor(
+                            subAxis, s.name, colorFromHex(subAxis.colorHex)),
+                        hidden: s.hidden,
+                      )),
+                ],
+              ),
             ),
             const SizedBox(height: 8),
             HeatGrid(
