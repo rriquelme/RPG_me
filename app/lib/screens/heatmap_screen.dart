@@ -37,6 +37,11 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Map<String, int> _subCounts = {};
   Map<String, int> _subSeconds = {};
   Map<String, Color>? _subDayColors;
+  // "By category" section (shown when All is selected): every day coloured by
+  // its dominant category.
+  Map<String, int> _catCounts = {};
+  Map<String, int> _catSeconds = {};
+  Map<String, Color>? _catDayColors;
   bool _loading = true;
   // Debounce heavy grid reloads while the category/subcategory wheel is spinning.
   Timer? _reloadDebounce;
@@ -60,6 +65,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     _reloadDebounce = Timer(const Duration(milliseconds: 140), () {
       _loadFiltered();
       _loadSub();
+      _loadCategoryBreakdown();
     });
   }
 
@@ -108,6 +114,27 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     return hex.isEmpty ? fallback : colorFromHex(hex);
   }
 
+  Color _axisColorFor(String key) {
+    final a = _axisFor(key);
+    return a != null ? colorFromHex(a.colorHex) : kDefaultAxisColor;
+  }
+
+  /// Load the "By category" chart (each day coloured by its dominant category).
+  /// Only relevant when All categories is selected.
+  Future<void> _loadCategoryBreakdown() async {
+    if (_axisKey != null) return; // section is hidden for a specific category
+    final days = await widget.repo.categoryDays();
+    if (mounted) {
+      setState(() {
+        _catCounts = days.counts;
+        _catSeconds = days.seconds;
+        _catDayColors = {
+          for (final e in days.dominant.entries) e.key: _axisColorFor(e.value),
+        };
+      });
+    }
+  }
+
   Future<void> _loadAll() async {
     setState(() {
       _axes = widget.repo.axesConfig;
@@ -115,6 +142,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     });
     await _loadFiltered();
     await _loadSub();
+    await _loadCategoryBreakdown();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -232,6 +260,25 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
             showDayNumbers: widget.repo.settings.showDayNumbers,
           ),
+          // "By category" — like the "By subcategory" chart but for the whole
+          // list, shown only when All categories is selected.
+          if (_axisKey == null && _axes.isNotEmpty) ...[
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 12),
+            Text('By category',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            HeatGrid(
+              counts: _catCounts,
+              seconds: _catSeconds,
+              isTime: isTime,
+              baseColor: const Color(0xFF2E9E4F),
+              firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+              dayColors: _catDayColors,
+              showDayNumbers: widget.repo.settings.showDayNumbers,
+            ),
+          ],
           if (subAxis != null && subAxis.subcategories.isNotEmpty) ...[
             const SizedBox(height: 28),
             const Divider(),
@@ -337,7 +384,7 @@ class _HeatGridState extends State<HeatGrid> {
   static const _cell = 15.0;
   static const _margin = 2.0;
   static const _row = _cell + 2 * _margin;
-  static const _gap = 10.0; // space between month blocks
+  static const _gap = 5.0; // space between month blocks
   static const _monthH = 18.0;
 
   static const _letters = {1: 'M', 2: 'T', 3: 'W', 4: 'T', 5: 'F', 6: 'S', 7: 'S'};

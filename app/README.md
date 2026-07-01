@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.43
+
+- **Tighter month spacing** on the Activity heatmaps — the gap between months is
+  half what it was, so more calendar fits on screen.
+- **"By category" heatmap when All is selected** — with *All* categories chosen,
+  a *By category* calendar now appears at the bottom, each day coloured by that
+  day's dominant category (mirroring the *By subcategory* chart).
+- **Smaller time wheel on the Log screen** — the hours/minutes scroll is more
+  compact so it takes less vertical space.
+
 ## What's new in 0.42
 
 - **Octagon scale: Exp replaced by Log+** — Settings → *Octagon* now offers

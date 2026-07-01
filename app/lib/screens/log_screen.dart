@@ -398,7 +398,7 @@ class _LogScreenState extends State<LogScreen> {
               const SizedBox(height: 4),
               // Scroll the hours/minutes wheels like a clock/alarm app.
               SizedBox(
-                height: 170,
+                height: 110,
                 child: CupertinoTimerPicker(
                   mode: CupertinoTimerPickerMode.hm,
                   initialTimerDuration:

@@ -136,6 +136,11 @@ class Repository {
   Future<SubcatDays> subcategoryDays(String axisKey, {bool includeHidden = false}) async =>
       _engine.subcategoryDays(axisKey, includeHidden: includeHidden);
 
+  /// Per-day category breakdown (counts/seconds + the dominant category each
+  /// day), for the "All categories" heatmap.
+  Future<SubcatDays> categoryDays({bool includeHidden = false}) async =>
+      _engine.categoryDays(includeHidden: includeHidden);
+
   // --- logged activity history -------------------------------------------
   /// All logged events, most recent first.
   List<Event> allEvents() {
