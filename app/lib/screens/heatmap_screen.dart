@@ -199,22 +199,27 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             onSelectionChanged: (s) => setState(() => _metric = s.first),
           ),
           const SizedBox(height: 20),
-          Text('Category', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          SizedBox(
-            height: 132,
-            child: CupertinoPicker(
-              itemExtent: 32,
-              magnification: 1.12,
-              squeeze: 1.1,
-              useMagnifier: true,
-              onSelectedItemChanged: _onCategoryWheel,
-              children: [
-                _wheelRow('All'),
-                ..._axes.map((a) =>
-                    _wheelRow(a.label, dot: colorFromHex(a.colorHex))),
-              ],
-            ),
+          Row(
+            children: [
+              Text('Category', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              SizedBox(
+                width: 190,
+                height: 68,
+                child: CupertinoPicker(
+                  itemExtent: 26,
+                  magnification: 1.1,
+                  squeeze: 1.15,
+                  useMagnifier: true,
+                  onSelectedItemChanged: _onCategoryWheel,
+                  children: [
+                    _wheelRow('All'),
+                    ..._axes.map((a) =>
+                        _wheelRow(a.label, dot: colorFromHex(a.colorHex))),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           HeatGrid(
@@ -231,43 +236,48 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             const SizedBox(height: 28),
             const Divider(),
             const SizedBox(height: 12),
-            Text('By subcategory',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            SizedBox(
-              height: 132,
-              // Keyed by category so the wheel resets to "All subcategories"
-              // (index 0) whenever the selected category changes.
-              child: CupertinoPicker(
-                key: ValueKey('sub-$_axisKey'),
-                itemExtent: 32,
-                magnification: 1.12,
-                squeeze: 1.1,
-                useMagnifier: true,
-                onSelectedItemChanged: (i) {
-                  final String? v;
-                  if (i == 0) {
-                    v = null;
-                  } else if (i == 1) {
-                    v = _kAllIncHidden;
-                  } else {
-                    final subs = subAxis.subcategories;
-                    v = (i - 2 < subs.length) ? subs[i - 2].name : null;
-                  }
-                  setState(() => _subKey = v);
-                  _scheduleReload();
-                },
-                children: [
-                  _wheelRow('All subcategories'),
-                  _wheelRow('All subcategories (inc. hidden)'),
-                  ...subAxis.subcategories.map((s) => _wheelRow(
-                        s.name,
-                        dot: _subColor(
-                            subAxis, s.name, colorFromHex(subAxis.colorHex)),
-                        hidden: s.hidden,
-                      )),
-                ],
-              ),
+            Row(
+              children: [
+                Text('By subcategory',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                SizedBox(
+                  width: 190,
+                  height: 68,
+                  // Keyed by category so the wheel resets to "All subcategories"
+                  // (index 0) whenever the selected category changes.
+                  child: CupertinoPicker(
+                    key: ValueKey('sub-$_axisKey'),
+                    itemExtent: 26,
+                    magnification: 1.1,
+                    squeeze: 1.15,
+                    useMagnifier: true,
+                    onSelectedItemChanged: (i) {
+                      final String? v;
+                      if (i == 0) {
+                        v = null;
+                      } else if (i == 1) {
+                        v = _kAllIncHidden;
+                      } else {
+                        final subs = subAxis.subcategories;
+                        v = (i - 2 < subs.length) ? subs[i - 2].name : null;
+                      }
+                      setState(() => _subKey = v);
+                      _scheduleReload();
+                    },
+                    children: [
+                      _wheelRow('All subcategories'),
+                      _wheelRow('All subcategories (inc. hidden)'),
+                      ...subAxis.subcategories.map((s) => _wheelRow(
+                            s.name,
+                            dot: _subColor(subAxis, s.name,
+                                colorFromHex(subAxis.colorHex)),
+                            hidden: s.hidden,
+                          )),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 8),
             HeatGrid(

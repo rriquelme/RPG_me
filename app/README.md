@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.41
+
+- **Smaller, inline Activity filter wheels** — the Category / By-subcategory
+  scroll wheels are now compact and sit on the right of their heading, in the
+  spot the old dropdown occupied, instead of taking a full-width row.
+
 ## What's new in 0.40
 
 - **Activity filters are now scroll wheels** — the *Category* and *By
