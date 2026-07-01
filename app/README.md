@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.42
+
+- **Octagon scale: Exp replaced by Log+** — Settings → *Octagon* now offers
+  **Linear · Log · Log+**. The old *Exp* (which suppressed small values) is gone;
+  **Log+** is a stronger logarithmic curve that lifts small values even more than
+  **Log**. (A previously-selected *Exp* falls back to *Linear*.)
+
 ## What's new in 0.41
 
 - **Smaller, inline Activity filter wheels** — the Category / By-subcategory

@@ -359,8 +359,8 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (key) {
       case 'log':
         return OctagonScale.logarithmic;
-      case 'exp':
-        return OctagonScale.exponential;
+      case 'log2':
+        return OctagonScale.logStrong;
       default:
         return OctagonScale.linear;
     }

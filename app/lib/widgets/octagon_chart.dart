@@ -18,7 +18,7 @@ class RadarPoint {
 }
 
 /// How a value maps to its distance from the centre.
-enum OctagonScale { linear, logarithmic, exponential }
+enum OctagonScale { linear, logarithmic, logStrong }
 
 /// The octagon: a 1–15 axis radar chart drawn so each axis uses the colour set
 /// for it in Settings (coloured vertices + labels). Tapping toward an axis
@@ -134,8 +134,9 @@ class _OctagonPainter extends CustomPainter {
         return t;
       case OctagonScale.logarithmic:
         return math.log(1 + 9 * t) / math.log(10); // concave: lifts small values
-      case OctagonScale.exponential:
-        return (math.pow(10, t).toDouble() - 1) / 9; // convex: suppresses small
+      case OctagonScale.logStrong:
+        // A stronger log (base-100): lifts small values even more than Log.
+        return math.log(1 + 99 * t) / math.log(100);
     }
   }
 

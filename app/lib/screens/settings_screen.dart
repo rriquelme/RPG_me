@@ -243,7 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 4),
           const Text(
             'How values map to distance from the centre — for trying out the '
-            'chart’s feel.',
+            'chart’s feel. Log lifts small values; Log+ lifts them even more.',
             style: TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 8),
@@ -252,7 +252,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             segments: const [
               ButtonSegment(value: 'linear', label: Text('Linear')),
               ButtonSegment(value: 'log', label: Text('Log')),
-              ButtonSegment(value: 'exp', label: Text('Exp')),
+              ButtonSegment(value: 'log2', label: Text('Log+')),
             ],
             selected: {widget.repo.settings.octagonScale},
             onSelectionChanged: (s) => _setOctagonScale(s.first),

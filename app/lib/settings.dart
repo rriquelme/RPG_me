@@ -31,7 +31,7 @@ class Settings {
   final bool showAddCategoryButton; // bottom +Category button
   final bool showAddSubcategoryButton; // bottom +Subcategory button
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
-  final String octagonScale; // 'linear' | 'log' | 'exp'
+  final String octagonScale; // 'linear' | 'log' | 'log2'
   final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
 
   const Settings({
@@ -103,7 +103,7 @@ class Settings {
       showAddCategoryButton: prefs.getBool(_kAddCatBtn) ?? false,
       showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
-      octagonScale: prefs.getString(_kOctagonScale) ?? 'linear',
+      octagonScale: _validScale(prefs.getString(_kOctagonScale)),
       percentageMode: prefs.getString(_kPercentageMode) ?? 'sum',
     );
   }
@@ -112,6 +112,11 @@ class Settings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPercentageMode, mode);
   }
+
+  // Valid octagon-scale keys; anything else (e.g. the retired 'exp') falls back
+  // to linear so the settings selector never gets an unknown value.
+  static String _validScale(String? s) =>
+      const {'linear', 'log', 'log2'}.contains(s) ? s! : 'linear';
 
   static Future<void> saveOctagonScale(String scale) async {
     final prefs = await SharedPreferences.getInstance();
