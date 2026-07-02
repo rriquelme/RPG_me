@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.44
+
+- **Swipe the octagon to switch metric** — swipe the chart left/right to move
+  through **Frequency · Time · Number · Percent** (wraps around). The metric
+  buttons stay at the top and now sync with the swipe.
+- **Thinner metric buttons** — the top metric toggle takes less vertical space.
+
 ## What's new in 0.43
 
 - **Tighter month spacing** on the Activity heatmaps — the gap between months is

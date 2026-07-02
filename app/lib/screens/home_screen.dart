@@ -390,12 +390,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// The metrics available given the enabled settings (Levels stays hidden).
-  Set<OctagonMetric> _availableMetrics(Settings s) => {
+  Set<OctagonMetric> _availableMetrics(Settings s) =>
+      _orderedMetrics(s).toSet();
+
+  /// Available metrics in the same order as the toggle segments — used by the
+  /// left/right swipe on the chart.
+  List<OctagonMetric> _orderedMetrics(Settings s) => [
         OctagonMetric.frequency,
         OctagonMetric.hours,
         if (s.trackNumber) OctagonMetric.number,
         if (s.trackPercentage) OctagonMetric.percentage,
-      };
+      ];
+
+  /// Cycle the octagon metric by [dir] (+1 next, -1 previous), wrapping around.
+  /// Driven by swiping the chart left/right.
+  void _cycleMetric(int dir) {
+    final repo = _repo;
+    if (repo == null) return;
+    final list = _orderedMetrics(repo.settings);
+    final i = list.indexOf(_metric);
+    if (i < 0 || list.length < 2) return;
+    final n = (i + dir + list.length) % list.length;
+    setState(() => _metric = list[n]);
+  }
 
   Future<void> _logForCategory(String axisKey) async {
     final repo = _repo;
@@ -513,6 +530,12 @@ class _HomeScreenState extends State<HomeScreen> {
             scrollDirection: Axis.horizontal,
             child: SegmentedButton<OctagonMetric>(
               showSelectedIcon: false, // keep segment widths fixed (no resize on toggle)
+              // Thinner on the Y axis: trim vertical padding and the tap target.
+              style: SegmentedButton.styleFrom(
+                visualDensity: const VisualDensity(vertical: -4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               segments: [
                 const ButtonSegment(
                     value: OctagonMetric.frequency, label: Text('Frequency')),
@@ -551,11 +574,24 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        OctagonChart(
-          points: _points(octView, average),
-          formatValue: (v) => _formatValue(v, average),
-          onTapAxis: _logForCategory,
-          scale: _octagonScale(repo.settings.octagonScale),
+        // Swipe the chart left/right to switch metric (Frequency · Time ·
+        // Number · Percent), wrapping around.
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (d) {
+            final v = d.primaryVelocity ?? 0;
+            if (v < 0) {
+              _cycleMetric(1); // swipe left -> next metric
+            } else if (v > 0) {
+              _cycleMetric(-1); // swipe right -> previous metric
+            }
+          },
+          child: OctagonChart(
+            points: _points(octView, average),
+            formatValue: (v) => _formatValue(v, average),
+            onTapAxis: _logForCategory,
+            scale: _octagonScale(repo.settings.octagonScale),
+          ),
         ),
         const SizedBox(height: 12),
         _periodNav(context),
