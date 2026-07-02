@@ -30,6 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Summary? _summary;
   OctagonView? _octView;
   OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
+  // Drives the swipeable octagon (one page per metric), so switching animates
+  // like a page transition.
+  final PageController _metricPager = PageController();
 
   // Period navigation. [_periodKey] is the dropdown selection; [_navOffset]
   // steps the window back (negative) / forward by one unit of that period.
@@ -47,6 +50,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _boot();
+  }
+
+  @override
+  void dispose() {
+    _metricPager.dispose();
+    super.dispose();
   }
 
   Future<void> _boot() async {
@@ -340,8 +349,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  double _rawValue(OctagonView v, String key) {
-    switch (_metric) {
+  double _rawValue(OctagonView v, String key, OctagonMetric metric) {
+    switch (metric) {
       case OctagonMetric.hours:
         return (v.seconds[key] ?? 0) / 3600.0;
       case OctagonMetric.frequency:
@@ -366,11 +375,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  List<RadarPoint> _points(OctagonView v, bool average) {
-    final isPct = _metric == OctagonMetric.percentage;
+  List<RadarPoint> _points(OctagonView v, bool average, OctagonMetric metric) {
+    final isPct = metric == OctagonMetric.percentage;
     final capSum = isPct && (_repo?.settings.percentageMode ?? 'sum') == 'sum';
     return v.axes.where((a) => !a.hidden).map((a) {
-      var value = _rawValue(v, a.key);
+      var value = _rawValue(v, a.key, metric);
       if (average && v.days > 0) {
         // Avg / day = mean daily contribution (axis value spread over the
         // window). Applies to the % axis too — in both Sum and Last-wins modes
@@ -402,16 +411,15 @@ class _HomeScreenState extends State<HomeScreen> {
         if (s.trackPercentage) OctagonMetric.percentage,
       ];
 
-  /// Cycle the octagon metric by [dir] (+1 next, -1 previous), wrapping around.
-  /// Driven by swiping the chart left/right.
-  void _cycleMetric(int dir) {
-    final repo = _repo;
-    if (repo == null) return;
-    final list = _orderedMetrics(repo.settings);
-    final i = list.indexOf(_metric);
-    if (i < 0 || list.length < 2) return;
-    final n = (i + dir + list.length) % list.length;
-    setState(() => _metric = list[n]);
+  /// Select a metric from the top toggle and animate the octagon pager to it
+  /// (so tapping a button slides the chart just like a swipe does).
+  void _selectMetric(OctagonMetric m, Settings s) {
+    final i = _orderedMetrics(s).indexOf(m);
+    setState(() => _metric = m);
+    if (i >= 0 && _metricPager.hasClients) {
+      _metricPager.animateToPage(i,
+          duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    }
   }
 
   Future<void> _logForCategory(String axisKey) async {
@@ -424,9 +432,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _reload();
   }
 
-  String _formatValue(double v, bool average) {
+  String _formatValue(double v, bool average, OctagonMetric metric) {
     final suffix = average ? '/d' : '';
-    switch (_metric) {
+    switch (metric) {
       case OctagonMetric.levels:
         return average ? v.toStringAsFixed(2) : 'L${v.toInt()}';
       case OctagonMetric.frequency:
@@ -518,6 +526,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
     final average = repo.settings.averagePerDay;
+    final metrics = _orderedMetrics(repo.settings);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -549,7 +558,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       value: OctagonMetric.percentage, label: Text('Percent')),
               ],
               selected: {_metric},
-              onSelectionChanged: (s) => setState(() => _metric = s.first),
+              onSelectionChanged: (s) => _selectMetric(s.first, repo.settings),
             ),
           ),
         ),
@@ -574,23 +583,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        // Swipe the chart left/right to switch metric (Frequency · Time ·
-        // Number · Percent), wrapping around.
-        GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onHorizontalDragEnd: (d) {
-            final v = d.primaryVelocity ?? 0;
-            if (v < 0) {
-              _cycleMetric(1); // swipe left -> next metric
-            } else if (v > 0) {
-              _cycleMetric(-1); // swipe right -> previous metric
-            }
-          },
-          child: OctagonChart(
-            points: _points(octView, average),
-            formatValue: (v) => _formatValue(v, average),
-            onTapAxis: _logForCategory,
-            scale: _octagonScale(repo.settings.octagonScale),
+        // Swipe the chart left/right to switch metric — each metric is its own
+        // page, so it slides out/in like a screen transition.
+        SizedBox(
+          height: MediaQuery.of(context).size.width - 32, // square chart area
+          child: PageView.builder(
+            controller: _metricPager,
+            itemCount: metrics.length,
+            onPageChanged: (i) => setState(() => _metric = metrics[i]),
+            itemBuilder: (context, i) {
+              final m = metrics[i];
+              return OctagonChart(
+                points: _points(octView, average, m),
+                formatValue: (v) => _formatValue(v, average, m),
+                onTapAxis: _logForCategory,
+                scale: _octagonScale(repo.settings.octagonScale),
+              );
+            },
           ),
         ),
         const SizedBox(height: 12),

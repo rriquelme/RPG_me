@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.45
+
+- **Animated octagon metric swipe** — switching metric now slides the chart
+  in/out like a page transition. Swipe the octagon or tap a metric button; the
+  chart animates to the new metric either way (they stay in sync).
+
 ## What's new in 0.44
 
 - **Swipe the octagon to switch metric** — swipe the chart left/right to move
