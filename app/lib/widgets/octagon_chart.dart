@@ -9,11 +9,17 @@ class RadarPoint {
   final String label;
   final Color color;
   final double value;
+
+  /// Number of logged entries for this axis (shown when [OctagonChart.showCounts]
+  /// is on), independent of the displayed metric.
+  final int count;
+
   const RadarPoint({
     required this.axisKey,
     required this.label,
     required this.color,
     required this.value,
+    this.count = 0,
   });
 }
 
@@ -34,12 +40,16 @@ class OctagonChart extends StatelessWidget {
   /// How normalized values map to radius (for visual testing).
   final OctagonScale scale;
 
+  /// Show each axis's logged-entry count under its value.
+  final bool showCounts;
+
   const OctagonChart({
     super.key,
     required this.points,
     required this.formatValue,
     this.onTapAxis,
     this.scale = OctagonScale.linear,
+    this.showCounts = false,
   });
 
   int? _nearestAxis(Offset p, double side) {
@@ -86,6 +96,7 @@ class OctagonChart extends StatelessWidget {
               labelStyle: theme.textTheme.labelSmall ?? const TextStyle(fontSize: 11),
               formatValue: formatValue,
               scale: scale,
+              showCounts: showCounts,
             ),
           );
           if (onTapAxis != null) {
@@ -114,6 +125,7 @@ class _OctagonPainter extends CustomPainter {
   final TextStyle labelStyle;
   final String Function(double) formatValue;
   final OctagonScale scale;
+  final bool showCounts;
 
   _OctagonPainter({
     required this.points,
@@ -124,6 +136,7 @@ class _OctagonPainter extends CustomPainter {
     required this.labelStyle,
     required this.formatValue,
     required this.scale,
+    required this.showCounts,
   });
 
   /// Map a normalized value [0,1] to a radius fraction [0,1] per [scale].
@@ -206,6 +219,14 @@ class _OctagonPainter extends CustomPainter {
               text: '\n${formatValue(points[i].value)}',
               style: labelStyle.copyWith(color: points[i].color.withOpacity(0.85)),
             ),
+            if (showCounts)
+              TextSpan(
+                text: '\n${points[i].count} '
+                    'log${points[i].count == 1 ? '' : 's'}',
+                style: labelStyle.copyWith(
+                    color: points[i].color.withOpacity(0.6),
+                    fontSize: (labelStyle.fontSize ?? 11) - 1),
+              ),
           ],
         ),
         textAlign: TextAlign.center,
@@ -222,5 +243,6 @@ class _OctagonPainter extends CustomPainter {
       old.points != points ||
       old.ceiling != ceiling ||
       old.lineColor != lineColor ||
-      old.scale != scale;
+      old.scale != scale ||
+      old.showCounts != showCounts;
 }

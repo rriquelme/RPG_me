@@ -122,6 +122,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setShowEntryCounts(bool on) async {
+    await Settings.saveShowEntryCounts(on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(showEntryCounts: on));
+    setState(() {});
+  }
+
   Future<void> _setOctagonScale(String scale) async {
     await Settings.saveOctagonScale(scale);
     await widget.repo
@@ -194,9 +201,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
                 'How multiple percentage logs combine on the octagon: '
-                'Sum adds them up (capped at 100%); Last wins shows the most '
-                'recent entry. With Avg / day on, the axis shows the mean '
-                'contribution per day instead.',
+                'Sum adds them up; Last wins shows the most recent entry. '
+                'With Avg / day on, the axis shows the mean contribution per '
+                'day instead.',
                 style: TextStyle(fontSize: 13),
               ),
             ),
@@ -256,6 +263,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             selected: {widget.repo.settings.octagonScale},
             onSelectionChanged: (s) => _setOctagonScale(s.first),
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Show entry counts'),
+            subtitle: const Text(
+                'Print the number of logged entries under each axis on the '
+                'octagon.'),
+            value: widget.repo.settings.showEntryCounts,
+            onChanged: _setShowEntryCounts,
           ),
           const Divider(height: 40),
           Text('Activity', style: Theme.of(context).textTheme.titleMedium),

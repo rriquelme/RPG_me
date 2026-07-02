@@ -376,24 +376,19 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<RadarPoint> _points(OctagonView v, bool average, OctagonMetric metric) {
-    final isPct = metric == OctagonMetric.percentage;
-    final capSum = isPct && (_repo?.settings.percentageMode ?? 'sum') == 'sum';
     return v.axes.where((a) => !a.hidden).map((a) {
       var value = _rawValue(v, a.key, metric);
       if (average && v.days > 0) {
         // Avg / day = mean daily contribution (axis value spread over the
-        // window). Applies to the % axis too — in both Sum and Last-wins modes
-        // — and stays uncapped so the true per-day mean shows.
+        // window). Applies to the % axis too, in both Sum and Last-wins modes.
         value = value / v.days;
-      } else if (capSum && value > 100) {
-        // Absolute Sum of percentages is capped at 100%.
-        value = 100;
       }
       return RadarPoint(
         axisKey: a.key,
         label: a.label,
         color: colorFromHex(a.colorHex),
         value: value,
+        count: v.counts[a.key] ?? 0,
       );
     }).toList();
   }
@@ -598,6 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 formatValue: (v) => _formatValue(v, average, m),
                 onTapAxis: _logForCategory,
                 scale: _octagonScale(repo.settings.octagonScale),
+                showCounts: repo.settings.showEntryCounts,
               );
             },
           ),

@@ -18,6 +18,7 @@ class Settings {
   static const _kDayNumbers = 'show_day_numbers';
   static const _kOctagonScale = 'octagon_scale';
   static const _kPercentageMode = 'percentage_mode';
+  static const _kShowEntryCounts = 'show_entry_counts';
 
   final String baseUrl;
   final String user;
@@ -33,6 +34,7 @@ class Settings {
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
   final String octagonScale; // 'linear' | 'log' | 'log2'
   final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
+  final bool showEntryCounts; // show per-axis logged-entry counts on the octagon
 
   const Settings({
     required this.baseUrl,
@@ -48,7 +50,8 @@ class Settings {
     this.showAddSubcategoryButton = false,
     this.showDayNumbers = false,
     this.octagonScale = 'linear',
-    this.percentageMode = 'sum',
+    this.percentageMode = 'latest',
+    this.showEntryCounts = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -68,6 +71,7 @@ class Settings {
     bool? showDayNumbers,
     String? octagonScale,
     String? percentageMode,
+    bool? showEntryCounts,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -86,6 +90,7 @@ class Settings {
         showDayNumbers: showDayNumbers ?? this.showDayNumbers,
         octagonScale: octagonScale ?? this.octagonScale,
         percentageMode: percentageMode ?? this.percentageMode,
+        showEntryCounts: showEntryCounts ?? this.showEntryCounts,
       );
 
   static Future<Settings> load() async {
@@ -104,8 +109,14 @@ class Settings {
       showAddSubcategoryButton: prefs.getBool(_kAddSubBtn) ?? false,
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
       octagonScale: _validScale(prefs.getString(_kOctagonScale)),
-      percentageMode: prefs.getString(_kPercentageMode) ?? 'sum',
+      percentageMode: prefs.getString(_kPercentageMode) ?? 'latest',
+      showEntryCounts: prefs.getBool(_kShowEntryCounts) ?? false,
     );
+  }
+
+  static Future<void> saveShowEntryCounts(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kShowEntryCounts, on);
   }
 
   static Future<void> savePercentageMode(String mode) async {

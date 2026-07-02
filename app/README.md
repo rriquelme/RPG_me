@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.46
+
+- **Show entry counts on the octagon** — Settings → *Octagon* → *Show entry
+  counts* (off by default) prints the number of logged entries under each axis,
+  whatever metric you're viewing.
+- **Percentage Sum is no longer capped at 100%** — it can exceed 100 if that's
+  what your logs add up to.
+- **Percentage defaults to Last wins** — the % axis now shows your most recent
+  entry by default (was Sum). Switch it in Settings → *Extra metrics*.
+
 ## What's new in 0.45
 
 - **Animated octagon metric swipe** — switching metric now slides the chart
