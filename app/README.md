@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.47
+
+- **Compare All vs a category on Activity** — when the top picker is on *All*,
+  the bottom *By category* chart now has its own category wheel. Leave it on
+  *All* for the dominant-colour view, or pick a category to see its own heatmap
+  side by side with the All grid above. (Picking a category up top keeps the
+  old *By subcategory* behaviour.)
+
 ## What's new in 0.46
 
 - **Show entry counts on the octagon** — Settings → *Octagon* → *Show entry

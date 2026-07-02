@@ -37,8 +37,10 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Map<String, int> _subCounts = {};
   Map<String, int> _subSeconds = {};
   Map<String, Color>? _subDayColors;
-  // "By category" section (shown when All is selected): every day coloured by
-  // its dominant category.
+  // "By category" section (shown when All is selected): pick a category to
+  // compare against All. null = All (every day coloured by its dominant
+  // category); a key = that category's own heatmap.
+  String? _catKey;
   Map<String, int> _catCounts = {};
   Map<String, int> _catSeconds = {};
   Map<String, Color>? _catDayColors;
@@ -74,6 +76,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     setState(() {
       _axisKey = key;
       _subKey = null; // subcategories are per-category
+      _catKey = null; // reset the All-vs-category comparison picker
     });
     _scheduleReload();
   }
@@ -119,19 +122,33 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     return a != null ? colorFromHex(a.colorHex) : kDefaultAxisColor;
   }
 
-  /// Load the "By category" chart (each day coloured by its dominant category).
-  /// Only relevant when All categories is selected.
+  /// Load the "By category" chart. With no category picked it colours each day
+  /// by its dominant category; with one picked it shows that category's own
+  /// heatmap (to compare against the All grid above). Only relevant when All
+  /// categories is selected up top.
   Future<void> _loadCategoryBreakdown() async {
     if (_axisKey != null) return; // section is hidden for a specific category
-    final days = await widget.repo.categoryDays();
-    if (mounted) {
-      setState(() {
-        _catCounts = days.counts;
-        _catSeconds = days.seconds;
-        _catDayColors = {
-          for (final e in days.dominant.entries) e.key: _axisColorFor(e.value),
-        };
-      });
+    if (_catKey == null) {
+      final days = await widget.repo.categoryDays();
+      if (mounted) {
+        setState(() {
+          _catCounts = days.counts;
+          _catSeconds = days.seconds;
+          _catDayColors = {
+            for (final e in days.dominant.entries) e.key: _axisColorFor(e.value),
+          };
+        });
+      }
+    } else {
+      final counts = await widget.repo.dailyCounts(axisKey: _catKey);
+      final seconds = await widget.repo.dailySeconds(axisKey: _catKey);
+      if (mounted) {
+        setState(() {
+          _catCounts = counts;
+          _catSeconds = seconds;
+          _catDayColors = null;
+        });
+      }
     }
   }
 
@@ -260,20 +277,49 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
             showDayNumbers: widget.repo.settings.showDayNumbers,
           ),
-          // "By category" — like the "By subcategory" chart but for the whole
-          // list, shown only when All categories is selected.
+          // "By category" — shown only when All categories is selected up top.
+          // Pick a category here to compare it against the All grid above.
           if (_axisKey == null && _axes.isNotEmpty) ...[
             const SizedBox(height: 28),
             const Divider(),
             const SizedBox(height: 12),
-            Text('By category',
-                style: Theme.of(context).textTheme.titleMedium),
+            Row(
+              children: [
+                Text('By category',
+                    style: Theme.of(context).textTheme.titleMedium),
+                const Spacer(),
+                SizedBox(
+                  width: 190,
+                  height: 68,
+                  child: CupertinoPicker(
+                    itemExtent: 26,
+                    magnification: 1.1,
+                    squeeze: 1.15,
+                    useMagnifier: true,
+                    onSelectedItemChanged: (i) {
+                      final key = (i <= 0 || i - 1 >= _axes.length)
+                          ? null
+                          : _axes[i - 1].key;
+                      setState(() => _catKey = key);
+                      _scheduleReload();
+                    },
+                    children: [
+                      _wheelRow('All'),
+                      ..._axes.map((a) =>
+                          _wheelRow(a.label, dot: colorFromHex(a.colorHex))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 8),
             HeatGrid(
               counts: _catCounts,
               seconds: _catSeconds,
               isTime: isTime,
-              baseColor: const Color(0xFF2E9E4F),
+              baseColor: _catKey == null
+                  ? const Color(0xFF2E9E4F)
+                  : _axisColorFor(_catKey!),
               firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
               dayColors: _catDayColors,
               showDayNumbers: widget.repo.settings.showDayNumbers,
