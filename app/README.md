@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.48
+
+- **Steadier time wheel on the Log screen** — scrolling the *Time spent* wheel no
+  longer rebuilds the rest of the form on every tick, so it can't visually jump.
+  (Picking a date never changed the logged duration — the date and the time
+  spent are stored separately — but the wheel could jitter; that's fixed.)
+
 ## What's new in 0.47
 
 - **Compare All vs a category on Activity** — when the top picker is on *All*,

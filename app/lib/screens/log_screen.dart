@@ -38,6 +38,10 @@ class _LogScreenState extends State<LogScreen> {
   String? _selectedSub; // optional subcategory within the selected category
   int _hours = 0;
   int _minutes = 0;
+  // Live duration for the "Logs …" hint. Updated straight from the time wheel
+  // WITHOUT setState, so scrolling the time never rebuilds the rest of the form
+  // (which previously churned the wheel and the top dashboard on every tick).
+  final ValueNotifier<int> _secNotifier = ValueNotifier<int>(0);
   DateTime _when = DateTime.now();
   bool _hidden = false; // hide THIS entry from the octagon (axis graph)
   bool _submitting = false;
@@ -59,6 +63,7 @@ class _LogScreenState extends State<LogScreen> {
       _nameController.text = ex.name;
       _hours = ex.seconds ~/ 3600;
       _minutes = (ex.seconds % 3600) ~/ 60;
+      _secNotifier.value = _seconds;
       _when = ex.timestamp;
       _hidden = ex.hidden;
       if (ex.number != null) _numberController.text = _fmtNum(ex.number!);
@@ -225,6 +230,7 @@ class _LogScreenState extends State<LogScreen> {
     _nameController.dispose();
     _numberController.dispose();
     _percentController.dispose();
+    _secNotifier.dispose();
     super.dispose();
   }
 
@@ -396,24 +402,31 @@ class _LogScreenState extends State<LogScreen> {
               const SizedBox(height: 24),
               Text('Time spent', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 4),
-              // Scroll the hours/minutes wheels like a clock/alarm app.
+              // Scroll the hours/minutes wheels like a clock/alarm app. Updates
+              // the fields directly (no setState) so scrolling the time never
+              // rebuilds the form or the date/dashboard around it.
               SizedBox(
                 height: 110,
                 child: CupertinoTimerPicker(
+                  key: const ValueKey('time-spent-wheel'),
                   mode: CupertinoTimerPickerMode.hm,
                   initialTimerDuration:
                       Duration(hours: _hours, minutes: _minutes),
-                  onTimerDurationChanged: (d) => setState(() {
+                  onTimerDurationChanged: (d) {
                     _hours = d.inHours;
                     _minutes = d.inMinutes % 60;
-                  }),
+                    _secNotifier.value = _seconds;
+                  },
                 ),
               ),
-              Text(
-                _seconds == 0
-                    ? 'No duration — logs a one-off tally.'
-                    : 'Logs ${formatHms(_seconds)}.',
-                style: Theme.of(context).textTheme.bodySmall,
+              ValueListenableBuilder<int>(
+                valueListenable: _secNotifier,
+                builder: (context, secs, _) => Text(
+                  secs == 0
+                      ? 'No duration — logs a one-off tally.'
+                      : 'Logs ${formatHms(secs)}.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
               const SizedBox(height: 20),
               ListTile(
