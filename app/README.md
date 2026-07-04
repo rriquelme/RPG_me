@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.49
+
+- **Chart view on Activity** — a new icon in the Activity app bar toggles between
+  the heatmap and a **bar-chart** view of the same data: one bar per day (height
+  ∝ frequency or time), grouped by month, scrollable, and tap a bar for that
+  day's totals. Category/subcategory pickers and the colours carry over.
+
 ## What's new in 0.48
 
 - **Steadier time wheel on the Log screen** — scrolling the *Time spent* wheel no

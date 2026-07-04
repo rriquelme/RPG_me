@@ -9,6 +9,8 @@ import '../repository.dart';
 
 enum _Metric { count, time }
 
+enum _ActivityView { heatmap, chart }
+
 /// Sentinel for the "All subcategories (inc. hidden)" dropdown item.
 const String _kAllIncHidden = '__all_inc_hidden__';
 
@@ -28,6 +30,7 @@ class HeatmapScreen extends StatefulWidget {
 
 class _HeatmapScreenState extends State<HeatmapScreen> {
   _Metric _metric = _Metric.count; // frequency is primary
+  _ActivityView _view = _ActivityView.heatmap; // heatmap by default
   List<AxisDef> _axes = [];
   String? _axisKey; // null = All (every category)
   Map<String, int> _filteredCounts = {};
@@ -120,6 +123,34 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Color _axisColorFor(String key) {
     final a = _axisFor(key);
     return a != null ? colorFromHex(a.colorHex) : kDefaultAxisColor;
+  }
+
+  /// One activity calendar in the current view (heatmap squares or day bars).
+  Widget _activityChart({
+    required Map<String, int> counts,
+    required Map<String, int> seconds,
+    required bool isTime,
+    required Color baseColor,
+    Map<String, Color>? dayColors,
+  }) {
+    if (_view == _ActivityView.chart) {
+      return DayChart(
+        counts: counts,
+        seconds: seconds,
+        isTime: isTime,
+        baseColor: baseColor,
+        dayColors: dayColors,
+      );
+    }
+    return HeatGrid(
+      counts: counts,
+      seconds: seconds,
+      isTime: isTime,
+      baseColor: baseColor,
+      firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
+      dayColors: dayColors,
+      showDayNumbers: widget.repo.settings.showDayNumbers,
+    );
   }
 
   /// Load the "By category" chart. With no category picked it colours each day
@@ -229,8 +260,20 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     }
     final isTime = _metric == _Metric.time;
     final subAxis = _axisFor(_axisKey);
+    final chartView = _view == _ActivityView.chart;
     return Scaffold(
-      appBar: AppBar(title: const Text('Activity')),
+      appBar: AppBar(
+        title: const Text('Activity'),
+        actions: [
+          IconButton(
+            icon: Icon(chartView ? Icons.grid_view_rounded : Icons.bar_chart),
+            tooltip: chartView ? 'Heatmap view' : 'Chart view',
+            onPressed: () => setState(() => _view = chartView
+                ? _ActivityView.heatmap
+                : _ActivityView.chart),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -267,15 +310,13 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          HeatGrid(
+          _activityChart(
             counts: _filteredCounts,
             seconds: _filteredSeconds,
             isTime: isTime,
             baseColor: _axisKey == null
                 ? const Color(0xFF2E9E4F)
                 : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
-            firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
-            showDayNumbers: widget.repo.settings.showDayNumbers,
           ),
           // "By category" — shown only when All categories is selected up top.
           // Pick a category here to compare it against the All grid above.
@@ -313,16 +354,14 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            HeatGrid(
+            _activityChart(
               counts: _catCounts,
               seconds: _catSeconds,
               isTime: isTime,
               baseColor: _catKey == null
                   ? const Color(0xFF2E9E4F)
                   : _axisColorFor(_catKey!),
-              firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
               dayColors: _catDayColors,
-              showDayNumbers: widget.repo.settings.showDayNumbers,
             ),
           ],
           if (subAxis != null && subAxis.subcategories.isNotEmpty) ...[
@@ -373,16 +412,14 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            HeatGrid(
+            _activityChart(
               counts: _subCounts,
               seconds: _subSeconds,
               isTime: isTime,
               baseColor: (_subKey == null || _subKey == _kAllIncHidden)
                   ? colorFromHex(subAxis.colorHex)
                   : _subColor(subAxis, _subKey!, colorFromHex(subAxis.colorHex)),
-              firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
               dayColors: _subDayColors,
-              showDayNumbers: widget.repo.settings.showDayNumbers,
             ),
           ],
         ],
@@ -627,6 +664,180 @@ class _HeatGridState extends State<HeatGrid> {
             const SizedBox(width: 6),
             Text('More', style: labelStyle),
           ],
+          const Spacer(),
+          Text(
+            widget.isTime
+                ? (maxSecs == 0 ? 'No data' : 'peak ${formatHms(maxSecs)}')
+                : (maxCount == 0 ? 'No data' : 'peak $maxCount×'),
+            style: labelStyle,
+          ),
+        ]),
+      ],
+    );
+  }
+}
+
+/// The same daily data as [HeatGrid], drawn as a month-by-month bar chart:
+/// one vertical bar per day (height ∝ count or time), grouped by month and
+/// horizontally scrollable, auto-scrolled to the most recent month. Tapping a
+/// bar shows that day's totals. Uses [dayColors] per day when provided.
+class DayChart extends StatefulWidget {
+  final Map<String, int> counts;
+  final Map<String, int> seconds;
+  final bool isTime;
+  final Color baseColor;
+  final Map<String, Color>? dayColors;
+
+  const DayChart({
+    super.key,
+    required this.counts,
+    required this.seconds,
+    required this.isTime,
+    required this.baseColor,
+    this.dayColors,
+  });
+
+  @override
+  State<DayChart> createState() => _DayChartState();
+}
+
+class _DayChartState extends State<DayChart> {
+  static const _monthsBack = 6;
+  static const _barW = 6.0;
+  static const _barGap = 1.0;
+  static const _chartH = 120.0;
+  static const _monthGap = 10.0;
+  static const _monthH = 18.0;
+
+  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
+    'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  final _sc = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_sc.hasClients) _sc.jumpTo(_sc.position.maxScrollExtent);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sc.dispose();
+    super.dispose();
+  }
+
+  int _valueFor(String k) =>
+      widget.isTime ? (widget.seconds[k] ?? 0) : (widget.counts[k] ?? 0);
+
+  void _showDay(BuildContext context, DateTime date, int count, int secs) {
+    final label =
+        '${_dayNames[date.weekday - 1]} ${date.day} ${_months[date.month - 1]} ${date.year}';
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(label),
+        content: Text('Logged $count time${count == 1 ? '' : 's'}'
+            '${secs > 0 ? '\nTime spent: ${formatHms(secs)}' : ''}'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context), child: const Text('Close'))
+        ],
+      ),
+    );
+  }
+
+  Widget _bar(BuildContext context, DateTime date, int maxV) {
+    final k = LocalEngine.dayKey(date);
+    final c = widget.counts[k] ?? 0;
+    final s = widget.seconds[k] ?? 0;
+    final v = widget.isTime ? s : c;
+    final h = maxV <= 0 ? 0.0 : (v / maxV) * _chartH;
+    final color = widget.dayColors?[k] ?? widget.baseColor;
+    return GestureDetector(
+      onTap: () => _showDay(context, date, c, s),
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: _barW + _barGap,
+        height: _chartH,
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            width: _barW,
+            height: h < 2 && v > 0 ? 2 : h, // keep tiny values visible
+            decoration: BoxDecoration(
+              color: v > 0
+                  ? color
+                  : Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
+      int maxV, TextStyle? labelStyle) {
+    final daysInMonth = DateTime(year, month + 1, 0).day;
+    final bars = <Widget>[];
+    for (var d = 1; d <= daysInMonth; d++) {
+      final date = DateTime(year, month, d);
+      if (date.isAfter(today)) break;
+      bars.add(_bar(context, date, maxV));
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: _monthH,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 2),
+            child: Text(
+              month == DateTime.january
+                  ? '${_months[month - 1]} $year'
+                  : _months[month - 1],
+              style: labelStyle?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: bars),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final labelStyle = Theme.of(context).textTheme.bodySmall;
+
+    final months = List.generate(_monthsBack,
+        (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
+
+    final maxSecs = widget.seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxCount = widget.counts.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxV = widget.isTime ? maxSecs : maxCount;
+
+    final blocks = <Widget>[];
+    for (var mi = 0; mi < months.length; mi++) {
+      final fom = months[mi];
+      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxV, labelStyle));
+      if (mi != months.length - 1) blocks.add(const SizedBox(width: _monthGap));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          controller: _sc,
+          scrollDirection: Axis.horizontal,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: blocks),
+        ),
+        const SizedBox(height: 8),
+        Row(children: [
           const Spacer(),
           Text(
             widget.isTime
