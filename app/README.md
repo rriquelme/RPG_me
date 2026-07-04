@@ -26,6 +26,11 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.53
+
+- **Centred metric buttons** on the Activity screen — the Frequency / Time /
+  Number / Percent toggle is now centred instead of left-aligned.
+
 ## What's new in 0.52
 
 - **Number & Percent on the Activity screen** — when *Track number* / *Track

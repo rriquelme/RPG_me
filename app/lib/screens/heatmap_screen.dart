@@ -319,8 +319,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          Center(
             child: SegmentedButton<_Metric>(
               showSelectedIcon: false,
               segments: [
