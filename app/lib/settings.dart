@@ -18,7 +18,6 @@ class Settings {
   static const _kDayNumbers = 'show_day_numbers';
   static const _kOctagonScale = 'octagon_scale';
   static const _kPercentageMode = 'percentage_mode';
-  static const _kShowEntryCounts = 'show_entry_counts';
 
   final String baseUrl;
   final String user;
@@ -34,7 +33,6 @@ class Settings {
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
   final String octagonScale; // 'linear' | 'log' | 'log2'
   final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
-  final bool showEntryCounts; // show per-axis logged-entry counts on the octagon
 
   const Settings({
     required this.baseUrl,
@@ -49,9 +47,8 @@ class Settings {
     this.showAddCategoryButton = false,
     this.showAddSubcategoryButton = false,
     this.showDayNumbers = false,
-    this.octagonScale = 'linear',
+    this.octagonScale = 'log2',
     this.percentageMode = 'latest',
-    this.showEntryCounts = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -71,7 +68,6 @@ class Settings {
     bool? showDayNumbers,
     String? octagonScale,
     String? percentageMode,
-    bool? showEntryCounts,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -90,7 +86,6 @@ class Settings {
         showDayNumbers: showDayNumbers ?? this.showDayNumbers,
         octagonScale: octagonScale ?? this.octagonScale,
         percentageMode: percentageMode ?? this.percentageMode,
-        showEntryCounts: showEntryCounts ?? this.showEntryCounts,
       );
 
   static Future<Settings> load() async {
@@ -110,13 +105,7 @@ class Settings {
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
       octagonScale: _validScale(prefs.getString(_kOctagonScale)),
       percentageMode: prefs.getString(_kPercentageMode) ?? 'latest',
-      showEntryCounts: prefs.getBool(_kShowEntryCounts) ?? false,
     );
-  }
-
-  static Future<void> saveShowEntryCounts(bool on) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kShowEntryCounts, on);
   }
 
   static Future<void> savePercentageMode(String mode) async {
@@ -124,10 +113,11 @@ class Settings {
     await prefs.setString(_kPercentageMode, mode);
   }
 
-  // Valid octagon-scale keys; anything else (e.g. the retired 'exp') falls back
-  // to linear so the settings selector never gets an unknown value.
+  // Valid octagon-scale keys; anything unset or unknown (e.g. the retired 'exp')
+  // falls back to the default 'log2' so the settings selector never gets an
+  // unknown value.
   static String _validScale(String? s) =>
-      const {'linear', 'log', 'log2'}.contains(s) ? s! : 'linear';
+      const {'linear', 'log', 'log2'}.contains(s) ? s! : 'log2';
 
   static Future<void> saveOctagonScale(String scale) async {
     final prefs = await SharedPreferences.getInstance();

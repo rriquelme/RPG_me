@@ -6,7 +6,7 @@ import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
 import '../widgets/subcategory_dialogs.dart';
-import 'heatmap_screen.dart' show HeatGrid;
+import 'heatmap_screen.dart' show HeatGrid, DayChart;
 
 /// Log an activity: pick a category, name it, optionally record how long you
 /// spent and on which day/time. Pass [existing] to edit a logged entry instead.
@@ -462,7 +462,7 @@ class _LogScreenState extends State<LogScreen> {
 /// dashboard on log creation" is enabled: a GitHub-style heatmap. Used for the
 /// category, a single subcategory, or — with [dayColors] — all subcategories
 /// coloured by each day's dominant one. Rebuilds when [selectionKey] changes.
-class _ActivityCard extends StatelessWidget {
+class _ActivityCard extends StatefulWidget {
   final String title;
   final Map<String, int> counts;
   final Map<String, int> seconds;
@@ -481,6 +481,14 @@ class _ActivityCard extends StatelessWidget {
   });
 
   @override
+  State<_ActivityCard> createState() => _ActivityCardState();
+}
+
+class _ActivityCardState extends State<_ActivityCard> {
+  bool _collapsed = false;
+  bool _chart = false; // false = heatmap, true = bar chart
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Card(
@@ -490,18 +498,59 @@ class _ActivityCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleMedium),
-            const SizedBox(height: 12),
-            HeatGrid(
-              // A fresh key per selection so the grid re-scrolls to the latest.
-              key: ValueKey(selectionKey),
-              counts: counts,
-              seconds: seconds,
-              isTime: false,
-              baseColor: baseColor,
-              firstDayOfWeek: firstDayOfWeek,
-              dayColors: dayColors,
+            // Tap to minimise/expand; swipe left for the chart, right for the
+            // heatmap.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _collapsed = !_collapsed),
+              onHorizontalDragEnd: (d) {
+                final v = d.primaryVelocity ?? 0;
+                if (v < 0) {
+                  setState(() => _chart = true);
+                } else if (v > 0) {
+                  setState(() => _chart = false);
+                }
+              },
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(widget.title, style: theme.textTheme.titleMedium),
+                  ),
+                  if (!_collapsed)
+                    IconButton(
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                          _chart ? Icons.grid_view_rounded : Icons.bar_chart),
+                      tooltip: _chart ? 'Heatmap' : 'Chart',
+                      onPressed: () => setState(() => _chart = !_chart),
+                    ),
+                  Icon(_collapsed ? Icons.expand_more : Icons.expand_less,
+                      color: theme.disabledColor),
+                ],
+              ),
             ),
+            if (!_collapsed) ...[
+              const SizedBox(height: 12),
+              // A fresh key per selection + view so it re-scrolls to the latest.
+              _chart
+                  ? DayChart(
+                      key: ValueKey('chart/${widget.selectionKey}'),
+                      counts: widget.counts,
+                      seconds: widget.seconds,
+                      isTime: false,
+                      baseColor: widget.baseColor,
+                      dayColors: widget.dayColors,
+                    )
+                  : HeatGrid(
+                      key: ValueKey('heat/${widget.selectionKey}'),
+                      counts: widget.counts,
+                      seconds: widget.seconds,
+                      isTime: false,
+                      baseColor: widget.baseColor,
+                      firstDayOfWeek: widget.firstDayOfWeek,
+                      dayColors: widget.dayColors,
+                    ),
+            ],
           ],
         ),
       ),

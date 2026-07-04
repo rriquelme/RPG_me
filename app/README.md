@@ -26,6 +26,17 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.50
+
+- **Chart axes** — the Activity bar chart now has month labels along the bottom
+  (X axis) and a value scale on the right (Y axis).
+- **Log dashboard: minimise & chart** — with *View dashboard on log creation* on,
+  tap the dashboard header to minimise/expand it, and swipe left for the bar
+  chart (right for the heatmap), or use the icon in its header.
+- **Log+ is the default octagon scale** now.
+- **Removed** the *Show entry counts* octagon option, and the *N events logged*
+  line above the octagon.
+
 ## What's new in 0.49
 
 - **Chart view on Activity** — a new icon in the Activity app bar toggles between

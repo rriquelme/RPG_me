@@ -388,7 +388,6 @@ class _HomeScreenState extends State<HomeScreen> {
         label: a.label,
         color: colorFromHex(a.colorHex),
         value: value,
-        count: v.counts[a.key] ?? 0,
       );
     }).toList();
   }
@@ -526,9 +525,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('${summary.totalEvents} events logged',
-            style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
         Center(
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -593,7 +589,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 formatValue: (v) => _formatValue(v, average, m),
                 onTapAxis: _logForCategory,
                 scale: _octagonScale(repo.settings.octagonScale),
-                showCounts: repo.settings.showEntryCounts,
               );
             },
           ),

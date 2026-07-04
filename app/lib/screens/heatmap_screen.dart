@@ -792,9 +792,14 @@ class _DayChartState extends State<DayChart> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
+          height: _chartH,
+          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: bars),
+        ),
+        // X-axis month label under the bars.
+        SizedBox(
           height: _monthH,
           child: Padding(
-            padding: const EdgeInsets.only(left: 2),
+            padding: const EdgeInsets.only(left: 2, top: 2),
             child: Text(
               month == DateTime.january
                   ? '${_months[month - 1]} $year'
@@ -803,9 +808,18 @@ class _DayChartState extends State<DayChart> {
             ),
           ),
         ),
-        Row(crossAxisAlignment: CrossAxisAlignment.end, children: bars),
       ],
     );
+  }
+
+  /// Compact Y-axis label for a value (frequency count or time).
+  String _axisLabel(int v) {
+    if (!widget.isTime) return '$v';
+    if (v >= 3600) {
+      final h = v / 3600;
+      return '${h.toStringAsFixed(v % 3600 == 0 ? 0 : 1)}h';
+    }
+    return '${(v / 60).round()}m';
   }
 
   @override
@@ -817,9 +831,8 @@ class _DayChartState extends State<DayChart> {
     final months = List.generate(_monthsBack,
         (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
 
-    final maxSecs = widget.seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
-    final maxCount = widget.counts.values.fold<int>(0, (a, b) => a > b ? a : b);
-    final maxV = widget.isTime ? maxSecs : maxCount;
+    final source = widget.isTime ? widget.seconds : widget.counts;
+    final maxV = source.values.fold<int>(0, (a, b) => a > b ? a : b);
 
     final blocks = <Widget>[];
     for (var mi = 0; mi < months.length; mi++) {
@@ -828,24 +841,33 @@ class _DayChartState extends State<DayChart> {
       if (mi != months.length - 1) blocks.add(const SizedBox(width: _monthGap));
     }
 
-    return Column(
+    // Right-hand Y axis: max at the top, mid, and 0 at the bar baseline.
+    final yAxis = SizedBox(
+      height: _chartH,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(maxV == 0 ? '—' : _axisLabel(maxV), style: labelStyle),
+          if (maxV > 1) Text(_axisLabel(maxV ~/ 2), style: labelStyle),
+          Text('0', style: labelStyle),
+        ],
+      ),
+    );
+
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SingleChildScrollView(
-          controller: _sc,
-          scrollDirection: Axis.horizontal,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: blocks),
-        ),
-        const SizedBox(height: 8),
-        Row(children: [
-          const Spacer(),
-          Text(
-            widget.isTime
-                ? (maxSecs == 0 ? 'No data' : 'peak ${formatHms(maxSecs)}')
-                : (maxCount == 0 ? 'No data' : 'peak $maxCount×'),
-            style: labelStyle,
+        Expanded(
+          child: SingleChildScrollView(
+            controller: _sc,
+            scrollDirection: Axis.horizontal,
+            child:
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: blocks),
           ),
-        ]),
+        ),
+        const SizedBox(width: 6),
+        yAxis,
       ],
     );
   }
