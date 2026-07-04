@@ -488,6 +488,11 @@ class _ActivityCardState extends State<_ActivityCard> {
   bool _collapsed = false;
   bool _chart = false; // false = heatmap, true = bar chart
 
+  // The log dashboard always shows frequency.
+  Map<String, double> get _values =>
+      {for (final e in widget.counts.entries) e.key: e.value.toDouble()};
+  static String _fmtFreq(double v) => v.toStringAsFixed(0);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -535,17 +540,18 @@ class _ActivityCardState extends State<_ActivityCard> {
               _chart
                   ? DayChart(
                       key: ValueKey('chart/${widget.selectionKey}'),
-                      counts: widget.counts,
-                      seconds: widget.seconds,
-                      isTime: false,
+                      values: _values,
+                      format: _fmtFreq,
+                      metricLabel: 'Frequency',
                       baseColor: widget.baseColor,
                       dayColors: widget.dayColors,
                     )
                   : HeatGrid(
                       key: ValueKey('heat/${widget.selectionKey}'),
-                      counts: widget.counts,
-                      seconds: widget.seconds,
-                      isTime: false,
+                      values: _values,
+                      discrete: true,
+                      format: _fmtFreq,
+                      metricLabel: 'Frequency',
                       baseColor: widget.baseColor,
                       firstDayOfWeek: widget.firstDayOfWeek,
                       dayColors: widget.dayColors,

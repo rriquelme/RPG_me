@@ -26,6 +26,15 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.52
+
+- **Number & Percent on the Activity screen** — when *Track number* / *Track
+  percentage* are on (Settings → *Extra metrics*), the Activity screen's metric
+  toggle adds **Number** and **Percent** alongside Frequency and Time. Both the
+  heatmap and the bar chart (and every section) shade/size by the chosen metric,
+  and the day tooltip shows its value. Percentage follows your Sum/Last-wins
+  setting.
+
 ## What's new in 0.51
 
 - **Bar chart: day numbers + gridlines** — the Activity bar chart now labels each

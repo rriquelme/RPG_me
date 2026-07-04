@@ -7,7 +7,7 @@ import '../local/local_engine.dart';
 import '../models.dart';
 import '../repository.dart';
 
-enum _Metric { count, time }
+enum _Metric { count, time, number, percent }
 
 enum _ActivityView { heatmap, chart }
 
@@ -33,19 +33,16 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   _ActivityView _view = _ActivityView.heatmap; // heatmap by default
   List<AxisDef> _axes = [];
   String? _axisKey; // null = All (every category)
-  Map<String, int> _filteredCounts = {};
-  Map<String, int> _filteredSeconds = {};
+  Map<String, double> _filteredVals = {};
   // "By subcategory" section (3rd chart), for the selected category.
   String? _subKey; // null = all subcategories, coloured by each day's dominant
-  Map<String, int> _subCounts = {};
-  Map<String, int> _subSeconds = {};
+  Map<String, double> _subVals = {};
   Map<String, Color>? _subDayColors;
   // "By category" section (shown when All is selected): pick a category to
   // compare against All. null = All (every day coloured by its dominant
   // category); a key = that category's own heatmap.
   String? _catKey;
-  Map<String, int> _catCounts = {};
-  Map<String, int> _catSeconds = {};
+  Map<String, double> _catVals = {};
   Map<String, Color>? _catDayColors;
   bool _loading = true;
   // Debounce heavy grid reloads while the category/subcategory wheel is spinning.
@@ -125,27 +122,58 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     return a != null ? colorFromHex(a.colorHex) : kDefaultAxisColor;
   }
 
+  String get _metricLabel {
+    switch (_metric) {
+      case _Metric.count:
+        return 'Frequency';
+      case _Metric.time:
+        return 'Time';
+      case _Metric.number:
+        return 'Number';
+      case _Metric.percent:
+        return 'Percent';
+    }
+  }
+
+  String _fmtMetric(double v) {
+    switch (_metric) {
+      case _Metric.count:
+        return v.toStringAsFixed(0);
+      case _Metric.time:
+        final s = v.round();
+        if (s >= 3600) {
+          final h = s / 3600;
+          return '${h.toStringAsFixed(s % 3600 == 0 ? 0 : 1)}h';
+        }
+        if (s >= 60) return '${(s / 60).round()}m';
+        return '${s}s';
+      case _Metric.number:
+        return v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1);
+      case _Metric.percent:
+        return '${v.toStringAsFixed(0)}%';
+    }
+  }
+
   /// One activity calendar in the current view (heatmap squares or day bars).
   Widget _activityChart({
-    required Map<String, int> counts,
-    required Map<String, int> seconds,
-    required bool isTime,
+    required Map<String, double> values,
     required Color baseColor,
     Map<String, Color>? dayColors,
   }) {
     if (_view == _ActivityView.chart) {
       return DayChart(
-        counts: counts,
-        seconds: seconds,
-        isTime: isTime,
+        values: values,
+        format: _fmtMetric,
+        metricLabel: _metricLabel,
         baseColor: baseColor,
         dayColors: dayColors,
       );
     }
     return HeatGrid(
-      counts: counts,
-      seconds: seconds,
-      isTime: isTime,
+      values: values,
+      discrete: _metric == _Metric.count,
+      format: _fmtMetric,
+      metricLabel: _metricLabel,
       baseColor: baseColor,
       firstDayOfWeek: widget.repo.settings.firstDayOfWeek,
       dayColors: dayColors,
@@ -160,23 +188,23 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
   Future<void> _loadCategoryBreakdown() async {
     if (_axisKey != null) return; // section is hidden for a specific category
     if (_catKey == null) {
+      // All: colour each day by its dominant category (frequency), size by the
+      // active metric over everything.
       final days = await widget.repo.categoryDays();
+      final vals = await _dailyMetric();
       if (mounted) {
         setState(() {
-          _catCounts = days.counts;
-          _catSeconds = days.seconds;
+          _catVals = vals;
           _catDayColors = {
             for (final e in days.dominant.entries) e.key: _axisColorFor(e.value),
           };
         });
       }
     } else {
-      final counts = await widget.repo.dailyCounts(axisKey: _catKey);
-      final seconds = await widget.repo.dailySeconds(axisKey: _catKey);
+      final vals = await _dailyMetric(axisKey: _catKey);
       if (mounted) {
         setState(() {
-          _catCounts = counts;
-          _catSeconds = seconds;
+          _catVals = vals;
           _catDayColors = null;
         });
       }
@@ -194,16 +222,33 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  /// Daily counts/seconds for the selected category, or all (when _axisKey null).
-  Future<void> _loadFiltered() async {
-    final counts = await widget.repo.dailyCounts(axisKey: _axisKey);
-    final seconds = await widget.repo.dailySeconds(axisKey: _axisKey);
-    if (mounted) {
-      setState(() {
-        _filteredCounts = counts;
-        _filteredSeconds = seconds;
-      });
+  /// Per-day value of the active metric for the given filter (null axis = all).
+  Future<Map<String, double>> _dailyMetric(
+      {String? axisKey, String? subcategory}) async {
+    switch (_metric) {
+      case _Metric.count:
+        final m =
+            await widget.repo.dailyCounts(axisKey: axisKey, subcategory: subcategory);
+        return m.map((k, v) => MapEntry(k, v.toDouble()));
+      case _Metric.time:
+        final m = await widget.repo
+            .dailySeconds(axisKey: axisKey, subcategory: subcategory);
+        return m.map((k, v) => MapEntry(k, v.toDouble()));
+      case _Metric.number:
+        return widget.repo
+            .dailyNumbers(axisKey: axisKey, subcategory: subcategory);
+      case _Metric.percent:
+        return widget.repo.dailyPercent(
+            axisKey: axisKey,
+            subcategory: subcategory,
+            mode: widget.repo.settings.percentageMode);
     }
+  }
+
+  /// Daily value for the selected category, or all (when _axisKey null).
+  Future<void> _loadFiltered() async {
+    final vals = await _dailyMetric(axisKey: _axisKey);
+    if (mounted) setState(() => _filteredVals = vals);
   }
 
   /// Load the "By subcategory" chart for the selected category: all
@@ -214,21 +259,22 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
     if (key == null || axis == null || axis.subcategories.isEmpty) {
       if (mounted) {
         setState(() {
-          _subCounts = {};
-          _subSeconds = {};
+          _subVals = {};
           _subDayColors = null;
         });
       }
       return;
     }
     if (_subKey == null || _subKey == _kAllIncHidden) {
+      // All subcategories: colour each day by its dominant subcategory (always
+      // frequency-based), size by the active metric over the whole category.
       final days = await widget.repo
           .subcategoryDays(key, includeHidden: _subKey == _kAllIncHidden);
+      final vals = await _dailyMetric(axisKey: key);
       final fallback = colorFromHex(axis.colorHex);
       if (mounted) {
         setState(() {
-          _subCounts = days.counts;
-          _subSeconds = days.seconds;
+          _subVals = vals;
           _subDayColors = {
             for (final e in days.dominant.entries)
               e.key: _subColor(axis, e.value, fallback),
@@ -236,14 +282,10 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         });
       }
     } else {
-      final counts =
-          await widget.repo.dailyCounts(axisKey: key, subcategory: _subKey);
-      final seconds =
-          await widget.repo.dailySeconds(axisKey: key, subcategory: _subKey);
+      final vals = await _dailyMetric(axisKey: key, subcategory: _subKey);
       if (mounted) {
         setState(() {
-          _subCounts = counts;
-          _subSeconds = seconds;
+          _subVals = vals;
           _subDayColors = null;
         });
       }
@@ -258,9 +300,9 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
-    final isTime = _metric == _Metric.time;
     final subAxis = _axisFor(_axisKey);
     final chartView = _view == _ActivityView.chart;
+    final s = widget.repo.settings;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Activity'),
@@ -277,14 +319,29 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          SegmentedButton<_Metric>(
-            showSelectedIcon: false,
-            segments: const [
-              ButtonSegment(value: _Metric.count, label: Text('Frequency')),
-              ButtonSegment(value: _Metric.time, label: Text('Time spent')),
-            ],
-            selected: {_metric},
-            onSelectionChanged: (s) => setState(() => _metric = s.first),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<_Metric>(
+              showSelectedIcon: false,
+              segments: [
+                const ButtonSegment(
+                    value: _Metric.count, label: Text('Frequency')),
+                const ButtonSegment(value: _Metric.time, label: Text('Time')),
+                if (s.trackNumber)
+                  const ButtonSegment(
+                      value: _Metric.number, label: Text('Number')),
+                if (s.trackPercentage)
+                  const ButtonSegment(
+                      value: _Metric.percent, label: Text('Percent')),
+              ],
+              selected: {_metric},
+              onSelectionChanged: (sel) {
+                setState(() => _metric = sel.first);
+                _loadFiltered();
+                _loadSub();
+                _loadCategoryBreakdown();
+              },
+            ),
           ),
           const SizedBox(height: 20),
           Row(
@@ -311,9 +368,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
           ),
           const SizedBox(height: 8),
           _activityChart(
-            counts: _filteredCounts,
-            seconds: _filteredSeconds,
-            isTime: isTime,
+            values: _filteredVals,
             baseColor: _axisKey == null
                 ? const Color(0xFF2E9E4F)
                 : colorFromHex(_axes.firstWhere((a) => a.key == _axisKey).colorHex),
@@ -355,9 +410,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             ),
             const SizedBox(height: 8),
             _activityChart(
-              counts: _catCounts,
-              seconds: _catSeconds,
-              isTime: isTime,
+              values: _catVals,
               baseColor: _catKey == null
                   ? const Color(0xFF2E9E4F)
                   : _axisColorFor(_catKey!),
@@ -413,9 +466,7 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
             ),
             const SizedBox(height: 8),
             _activityChart(
-              counts: _subCounts,
-              seconds: _subSeconds,
-              isTime: isTime,
+              values: _subVals,
               baseColor: (_subKey == null || _subKey == _kAllIncHidden)
                   ? colorFromHex(subAxis.colorHex)
                   : _subColor(subAxis, _subKey!, colorFromHex(subAxis.colorHex)),
@@ -433,9 +484,19 @@ class _HeatmapScreenState extends State<HeatmapScreen> {
 /// naturally (no fake "every month starts Monday"). Weekday labels follow the
 /// configured first day of week; auto-scrolls to the most recent month.
 class HeatGrid extends StatefulWidget {
-  final Map<String, int> counts;
-  final Map<String, int> seconds;
-  final bool isTime;
+  /// Per-day value for the active metric (frequency, time, number, percent…).
+  final Map<String, double> values;
+
+  /// Discrete metrics (frequency) use GitHub-style step buckets; continuous
+  /// metrics (time/number/percent) shade by ratio to the day-peak.
+  final bool discrete;
+
+  /// Formats a value for the tooltip / legend (e.g. "3", "1h", "45", "80%").
+  final String Function(double) format;
+
+  /// Metric name for the day tooltip (e.g. "Frequency", "Number").
+  final String metricLabel;
+
   final Color baseColor;
   final int firstDayOfWeek; // DateTime.monday..sunday
 
@@ -449,9 +510,10 @@ class HeatGrid extends StatefulWidget {
 
   const HeatGrid({
     super.key,
-    required this.counts,
-    required this.seconds,
-    required this.isTime,
+    required this.values,
+    required this.discrete,
+    required this.format,
+    required this.metricLabel,
     required this.baseColor,
     required this.firstDayOfWeek,
     this.dayColors,
@@ -491,27 +553,29 @@ class _HeatGridState extends State<HeatGrid> {
     super.dispose();
   }
 
-  Color _color(BuildContext context, int count, int secs, int maxSecs, Color base) {
+  Color _color(BuildContext context, double v, double maxV, Color base) {
     final empty = Theme.of(context).colorScheme.surfaceContainerHighest;
-    if (widget.isTime) {
-      if (secs <= 0 || maxSecs <= 0) return empty;
-      final r = secs / maxSecs;
-      final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
+    if (v <= 0) return empty;
+    if (widget.discrete) {
+      final n = v.round();
+      final o = n == 1 ? 0.32 : (n == 2 ? 0.52 : (n == 3 ? 0.74 : 1.0));
       return base.withOpacity(o);
     }
-    if (count <= 0) return empty;
-    final o = count == 1 ? 0.32 : (count == 2 ? 0.52 : (count == 3 ? 0.74 : 1.0));
+    if (maxV <= 0) return empty;
+    final r = v / maxV;
+    final o = r <= 0.25 ? 0.35 : (r <= 0.5 ? 0.55 : (r <= 0.75 ? 0.78 : 1.0));
     return base.withOpacity(o);
   }
 
-  void _showDay(BuildContext context, DateTime date, int count, int secs) {
+  void _showDay(BuildContext context, DateTime date, double v) {
     final label = '${_dayNames[date.weekday - 1]} ${date.day} ${_months[date.month - 1]} ${date.year}';
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(label),
-        content: Text('Logged $count time${count == 1 ? '' : 's'}'
-            '${secs > 0 ? '\nTime spent: ${formatHms(secs)}' : ''}'),
+        content: Text(v > 0
+            ? '${widget.metricLabel}: ${widget.format(v)}'
+            : 'No activity'),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close'))],
       ),
     );
@@ -520,16 +584,15 @@ class _HeatGridState extends State<HeatGrid> {
   Widget _blankCell() =>
       Container(width: _cell, height: _cell, margin: const EdgeInsets.all(_margin));
 
-  Widget _dayCell(BuildContext context, DateTime date, int maxSecs) {
+  Widget _dayCell(BuildContext context, DateTime date, double maxV) {
     final k = LocalEngine.dayKey(date);
-    final c = widget.counts[k] ?? 0;
-    final s = widget.seconds[k] ?? 0;
+    final v = widget.values[k] ?? 0;
     final base = widget.dayColors != null
         ? (widget.dayColors![k] ?? widget.baseColor)
         : widget.baseColor;
-    final cellColor = _color(context, c, s, maxSecs, base);
+    final cellColor = _color(context, v, maxV, base);
     return GestureDetector(
-      onTap: () => _showDay(context, date, c, s),
+      onTap: () => _showDay(context, date, v),
       child: Container(
         width: _cell,
         height: _cell,
@@ -559,7 +622,7 @@ class _HeatGridState extends State<HeatGrid> {
   /// One month as a calendar: columns are weeks, each day in its weekday row,
   /// with blanks padding the first and last weeks.
   Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
-      int maxSecs, TextStyle? labelStyle) {
+      double maxV, TextStyle? labelStyle) {
     final fdow = widget.firstDayOfWeek;
     final daysInMonth = DateTime(year, month + 1, 0).day;
     final r1 = (DateTime(year, month, 1).weekday - fdow + 7) % 7; // row of the 1st
@@ -572,7 +635,7 @@ class _HeatGridState extends State<HeatGrid> {
           if (dayNum < 1 || dayNum > daysInMonth) return _blankCell();
           final date = DateTime(year, month, dayNum);
           if (date.isAfter(today)) return _blankCell();
-          return _dayCell(context, date, maxSecs);
+          return _dayCell(context, date, maxV);
         }),
       );
     });
@@ -605,14 +668,13 @@ class _HeatGridState extends State<HeatGrid> {
     final months = List.generate(
         _monthsBack, (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
 
-    final maxSecs = widget.seconds.values.fold<int>(0, (a, b) => a > b ? a : b);
-    final maxCount = widget.counts.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxV = widget.values.values.fold<double>(0, (a, b) => a > b ? a : b);
     final labelStyle = Theme.of(context).textTheme.bodySmall;
 
     final blocks = <Widget>[];
     for (var mi = 0; mi < months.length; mi++) {
       final fom = months[mi];
-      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxSecs, labelStyle));
+      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxV, labelStyle));
       if (mi != months.length - 1) blocks.add(const SizedBox(width: _gap));
     }
 
@@ -666,9 +728,7 @@ class _HeatGridState extends State<HeatGrid> {
           ],
           const Spacer(),
           Text(
-            widget.isTime
-                ? (maxSecs == 0 ? 'No data' : 'peak ${formatHms(maxSecs)}')
-                : (maxCount == 0 ? 'No data' : 'peak $maxCount×'),
+            maxV == 0 ? 'No data' : 'peak ${widget.format(maxV)}',
             style: labelStyle,
           ),
         ]),
@@ -682,17 +742,23 @@ class _HeatGridState extends State<HeatGrid> {
 /// horizontally scrollable, auto-scrolled to the most recent month. Tapping a
 /// bar shows that day's totals. Uses [dayColors] per day when provided.
 class DayChart extends StatefulWidget {
-  final Map<String, int> counts;
-  final Map<String, int> seconds;
-  final bool isTime;
+  /// Per-day value for the active metric.
+  final Map<String, double> values;
+
+  /// Formats a value for the Y axis / peak / tooltip.
+  final String Function(double) format;
+
+  /// Metric name for the day tooltip.
+  final String metricLabel;
+
   final Color baseColor;
   final Map<String, Color>? dayColors;
 
   const DayChart({
     super.key,
-    required this.counts,
-    required this.seconds,
-    required this.isTime,
+    required this.values,
+    required this.format,
+    required this.metricLabel,
     required this.baseColor,
     this.dayColors,
   });
@@ -733,15 +799,16 @@ class _DayChartState extends State<DayChart> {
     super.dispose();
   }
 
-  void _showDay(BuildContext context, DateTime date, int count, int secs) {
+  void _showDay(BuildContext context, DateTime date, double v) {
     final label =
         '${_dayNames[date.weekday - 1]} ${date.day} ${_months[date.month - 1]} ${date.year}';
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(label),
-        content: Text('Logged $count time${count == 1 ? '' : 's'}'
-            '${secs > 0 ? '\nTime spent: ${formatHms(secs)}' : ''}'),
+        content: Text(v > 0
+            ? '${widget.metricLabel}: ${widget.format(v)}'
+            : 'No activity'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context), child: const Text('Close'))
@@ -750,15 +817,13 @@ class _DayChartState extends State<DayChart> {
     );
   }
 
-  Widget _bar(BuildContext context, DateTime date, int maxV) {
+  Widget _bar(BuildContext context, DateTime date, double maxV) {
     final k = LocalEngine.dayKey(date);
-    final c = widget.counts[k] ?? 0;
-    final s = widget.seconds[k] ?? 0;
-    final v = widget.isTime ? s : c;
+    final v = widget.values[k] ?? 0;
     final h = maxV <= 0 ? 0.0 : (v / maxV) * _chartH;
     final color = widget.dayColors?[k] ?? widget.baseColor;
     return GestureDetector(
-      onTap: () => _showDay(context, date, c, s),
+      onTap: () => _showDay(context, date, v),
       behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: _barW + _barGap,
@@ -781,7 +846,7 @@ class _DayChartState extends State<DayChart> {
   }
 
   Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
-      int maxV, TextStyle? labelStyle, Color gridColor) {
+      double maxV, TextStyle? labelStyle, Color gridColor) {
     final daysInMonth = DateTime(year, month + 1, 0).day;
     final daySmall = labelStyle?.copyWith(
         fontSize: 8, color: Theme.of(context).textTheme.bodySmall?.color);
@@ -831,16 +896,6 @@ class _DayChartState extends State<DayChart> {
     );
   }
 
-  /// Compact Y-axis label for a value (frequency count or time).
-  String _axisLabel(int v) {
-    if (!widget.isTime) return '$v';
-    if (v >= 3600) {
-      final h = v / 3600;
-      return '${h.toStringAsFixed(v % 3600 == 0 ? 0 : 1)}h';
-    }
-    return '${(v / 60).round()}m';
-  }
-
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -850,8 +905,7 @@ class _DayChartState extends State<DayChart> {
     final months = List.generate(_monthsBack,
         (i) => DateTime(today.year, today.month - (_monthsBack - 1 - i), 1));
 
-    final source = widget.isTime ? widget.seconds : widget.counts;
-    final maxV = source.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final maxV = widget.values.values.fold<double>(0, (a, b) => a > b ? a : b);
     final gridColor = Theme.of(context).dividerColor;
 
     final blocks = <Widget>[];
@@ -870,10 +924,10 @@ class _DayChartState extends State<DayChart> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(maxV == 0 ? '—' : _axisLabel(maxV), style: labelStyle),
-          if (maxV > 3) Text(_axisLabel((maxV * 3) ~/ 4), style: labelStyle),
-          if (maxV > 1) Text(_axisLabel(maxV ~/ 2), style: labelStyle),
-          if (maxV > 3) Text(_axisLabel(maxV ~/ 4), style: labelStyle),
+          Text(maxV == 0 ? '—' : widget.format(maxV), style: labelStyle),
+          if (maxV > 3) Text(widget.format(maxV * 3 / 4), style: labelStyle),
+          if (maxV > 1) Text(widget.format(maxV / 2), style: labelStyle),
+          if (maxV > 3) Text(widget.format(maxV / 4), style: labelStyle),
           Text('0', style: labelStyle),
         ],
       ),

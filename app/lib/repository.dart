@@ -130,6 +130,11 @@ class Repository {
       _engine.dailyCounts(axisKey: axisKey, subcategory: subcategory);
   Future<Map<String, int>> dailySeconds({String? axisKey, String? subcategory}) async =>
       _engine.dailySeconds(axisKey: axisKey, subcategory: subcategory);
+  Future<Map<String, double>> dailyNumbers({String? axisKey, String? subcategory}) async =>
+      _engine.dailyNumbers(axisKey: axisKey, subcategory: subcategory);
+  Future<Map<String, double>> dailyPercent(
+          {String? axisKey, String? subcategory, String mode = 'latest'}) async =>
+      _engine.dailyPercent(axisKey: axisKey, subcategory: subcategory, mode: mode);
 
   /// Per-day breakdown of an axis's subcategories (counts/seconds + the
   /// dominant subcategory each day), for the "all subcategories" heatmap.
