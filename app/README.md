@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.51
+
+- **Bar chart: day numbers + gridlines** — the Activity bar chart now labels each
+  bar with its day-of-month along the bottom, with the month name shown once
+  (centred) beneath each month, and faint grey gridlines across the plot so you
+  can read off value ranges against the Y axis.
+
 ## What's new in 0.50
 
 - **Chart axes** — the Activity bar chart now has month labels along the bottom

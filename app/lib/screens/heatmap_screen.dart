@@ -703,11 +703,15 @@ class DayChart extends StatefulWidget {
 
 class _DayChartState extends State<DayChart> {
   static const _monthsBack = 6;
-  static const _barW = 6.0;
-  static const _barGap = 1.0;
+  static const _barW = 12.0;
+  static const _barGap = 4.0;
+  static const _slot = _barW + _barGap;
   static const _chartH = 120.0;
-  static const _monthGap = 10.0;
+  static const _dayH = 14.0; // X-axis day-number row height
+  static const _monthGap = 12.0;
   static const _monthH = 18.0;
+  // Horizontal gridline positions (fraction from the top).
+  static const _gridFractions = [0.25, 0.5, 0.75];
 
   static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
@@ -728,9 +732,6 @@ class _DayChartState extends State<DayChart> {
     _sc.dispose();
     super.dispose();
   }
-
-  int _valueFor(String k) =>
-      widget.isTime ? (widget.seconds[k] ?? 0) : (widget.counts[k] ?? 0);
 
   void _showDay(BuildContext context, DateTime date, int count, int secs) {
     final label =
@@ -780,26 +781,44 @@ class _DayChartState extends State<DayChart> {
   }
 
   Widget _monthBlock(BuildContext context, int year, int month, DateTime today,
-      int maxV, TextStyle? labelStyle) {
+      int maxV, TextStyle? labelStyle, Color gridColor) {
     final daysInMonth = DateTime(year, month + 1, 0).day;
+    final daySmall = labelStyle?.copyWith(
+        fontSize: 8, color: Theme.of(context).textTheme.bodySmall?.color);
     final bars = <Widget>[];
+    final dayNums = <Widget>[];
     for (var d = 1; d <= daysInMonth; d++) {
       final date = DateTime(year, month, d);
       if (date.isAfter(today)) break;
       bars.add(_bar(context, date, maxV));
+      dayNums.add(SizedBox(
+        width: _slot,
+        child: Center(child: Text('$d', style: daySmall)),
+      ));
     }
+    final blockW = bars.length * _slot;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Bars over horizontal gridlines.
         SizedBox(
+          width: blockW,
           height: _chartH,
-          child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: bars),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: CustomPaint(painter: _GridPainter(gridColor)),
+              ),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: bars),
+            ],
+          ),
         ),
-        // X-axis month label under the bars.
+        // X-axis day numbers, then the month name once (centred under the block).
+        SizedBox(height: _dayH, child: Row(children: dayNums)),
         SizedBox(
+          width: blockW,
           height: _monthH,
-          child: Padding(
-            padding: const EdgeInsets.only(left: 2, top: 2),
+          child: Center(
             child: Text(
               month == DateTime.january
                   ? '${_months[month - 1]} $year'
@@ -833,15 +852,18 @@ class _DayChartState extends State<DayChart> {
 
     final source = widget.isTime ? widget.seconds : widget.counts;
     final maxV = source.values.fold<int>(0, (a, b) => a > b ? a : b);
+    final gridColor = Theme.of(context).dividerColor;
 
     final blocks = <Widget>[];
     for (var mi = 0; mi < months.length; mi++) {
       final fom = months[mi];
-      blocks.add(_monthBlock(context, fom.year, fom.month, today, maxV, labelStyle));
+      blocks.add(_monthBlock(
+          context, fom.year, fom.month, today, maxV, labelStyle, gridColor));
       if (mi != months.length - 1) blocks.add(const SizedBox(width: _monthGap));
     }
 
-    // Right-hand Y axis: max at the top, mid, and 0 at the bar baseline.
+    // Right-hand Y axis, aligned to the bar area: max at the top, the gridline
+    // values in between, and 0 at the baseline.
     final yAxis = SizedBox(
       height: _chartH,
       child: Column(
@@ -849,7 +871,9 @@ class _DayChartState extends State<DayChart> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(maxV == 0 ? '—' : _axisLabel(maxV), style: labelStyle),
+          if (maxV > 3) Text(_axisLabel((maxV * 3) ~/ 4), style: labelStyle),
           if (maxV > 1) Text(_axisLabel(maxV ~/ 2), style: labelStyle),
+          if (maxV > 3) Text(_axisLabel(maxV ~/ 4), style: labelStyle),
           Text('0', style: labelStyle),
         ],
       ),
@@ -871,4 +895,25 @@ class _DayChartState extends State<DayChart> {
       ],
     );
   }
+}
+
+/// Faint horizontal gridlines behind the bars, at [_DayChartState._gridFractions]
+/// of the plot height, so you can read off value ranges.
+class _GridPainter extends CustomPainter {
+  final Color color;
+  const _GridPainter(this.color);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color.withOpacity(0.5)
+      ..strokeWidth = 1;
+    for (final f in _DayChartState._gridFractions) {
+      final y = size.height * f;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _GridPainter old) => old.color != color;
 }
