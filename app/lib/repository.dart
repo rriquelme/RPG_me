@@ -194,6 +194,9 @@ class Repository {
   }
 
   // --- period-aware octagon data -----------------------------------------
+  /// The earliest logged event's date, or null if there are no events.
+  DateTime? firstEventDate() => _engine.firstEventDate();
+
   /// Per-axis seconds + exp within [since] (null = all time) and the number of
   /// days the window covers (for "average per day").
   /// Per-axis octagon data over [since]..[until]. [until] is an exclusive upper

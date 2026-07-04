@@ -43,7 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime? _customEnd;
 
   static const _simplePeriods = {
-    'today', 'this_week', 'this_month', 'this_year', 'all'
+    'today', 'this_week', 'this_month', 'this_year', 'all', 'since_first'
   };
 
   @override
@@ -137,13 +137,23 @@ class _HomeScreenState extends State<HomeScreen> {
           end: endIncl.add(const Duration(days: 1)),
           label: '${_fmtDay(start)} – ${_fmtDay(endIncl)}'
         );
+      case 'since_first':
+        final first = _repo?.firstEventDate();
+        final start = first == null
+            ? today
+            : DateTime(first.year, first.month, first.day);
+        return (
+          start: start,
+          end: today.add(const Duration(days: 1)),
+          label: 'Since ${_fmtDay(start)}'
+        );
       case 'all':
       default:
         return (start: null, end: null, label: 'All time');
     }
   }
 
-  bool get _navigable => _periodKey != 'all';
+  bool get _navigable => _periodKey != 'all' && _periodKey != 'since_first';
 
   /// Forward is allowed only while the next window doesn't start in the future.
   bool get _canForward {

@@ -182,6 +182,7 @@ class OctagonPeriod {
     OctagonPeriod('this_month', 'This month'),
     OctagonPeriod('this_year', 'This year'),
     OctagonPeriod('all', 'All time'),
+    OctagonPeriod('since_first', 'Since first log'),
     OctagonPeriod('custom_day', 'Custom: single day'),
     OctagonPeriod('custom_range', 'Custom: range of days'),
   ];

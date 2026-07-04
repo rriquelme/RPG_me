@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.54
+
+- **"Since first log" octagon period** — the period dropdown has a new option
+  that spans from your very first logged day up to today (labelled with that
+  start date), with Avg / day computed over that whole span.
+
 ## What's new in 0.53
 
 - **Centred metric buttons** on the Activity screen — the Frequency / Time /
