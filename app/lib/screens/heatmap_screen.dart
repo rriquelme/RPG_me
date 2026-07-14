@@ -787,6 +787,22 @@ class _DayChartState extends State<DayChart> {
   @override
   void initState() {
     super.initState();
+    _scrollToEnd();
+  }
+
+  @override
+  void didUpdateWidget(DayChart old) {
+    super.didUpdateWidget(old);
+    // New data (metric/category change) can change the layout width — e.g.
+    // decimal values widen the Y-axis labels — so re-pin to the latest day.
+    if (!identical(old.values, widget.values) ||
+        old.format != widget.format) {
+      _scrollToEnd();
+    }
+  }
+
+  /// After layout, pin the horizontal scroll to the most recent day.
+  void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_sc.hasClients) _sc.jumpTo(_sc.position.maxScrollExtent);
     });

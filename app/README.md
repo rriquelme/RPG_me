@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.55
+
+- **Bar chart always shows the latest day** — switching to a metric with decimal
+  values (which widen the Y-axis labels) no longer leaves the most recent day
+  scrolled off-screen; the chart re-pins to the latest day whenever its data
+  changes.
+
 ## What's new in 0.54
 
 - **"Since first log" octagon period** — the period dropdown has a new option
