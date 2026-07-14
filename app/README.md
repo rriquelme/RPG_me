@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.61
+
+- **Names keep their capitalisation** — logged activity names are no longer
+  lowercased on save, so what you type (or the category's label) is preserved
+  in the app and in the logs. (Category sorting stays case-insensitive.)
+
 ## What's new in 0.60
 
 - **Timers keep the category's capitalisation** — a timer with no activity name

@@ -180,7 +180,7 @@ class _LogScreenState extends State<LogScreen> {
       if (name.isEmpty) {
         final axis = _axes.firstWhere((a) => a.key == _selectedAxis,
             orElse: () => _axes.first);
-        name = axis.label.toLowerCase();
+        name = axis.label;
       }
       final ex = widget.existing;
       final sub = _selectedSub ?? '';

@@ -111,7 +111,7 @@ class Repository {
     _events.add(Event(
       id: Event.newId(),
       axisKey: axisKey,
-      name: name.trim().toLowerCase(),
+      name: name.trim(),
       subcategory: subcategory.trim(),
       hidden: hidden,
       number: number,
@@ -179,7 +179,7 @@ class Repository {
     _events[i] = Event(
       id: id,
       axisKey: axisKey,
-      name: name.trim().toLowerCase(),
+      name: name.trim(),
       subcategory: subcategory.trim(),
       hidden: hidden,
       number: number,
