@@ -101,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_periodKey) {
       case 'today':
         final d = today.add(Duration(days: offset));
-        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDay(d));
+        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDayFull(d));
       case 'this_week':
         final w0 = today.subtract(Duration(days: (today.weekday - fdow + 7) % 7));
         final ws = w0.add(Duration(days: offset * 7));
@@ -126,7 +126,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'custom_day':
         final base = _customStart ?? today;
         final d = base.add(Duration(days: offset));
-        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDay(d));
+        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDayFull(d));
       case 'custom_range':
         final cs = _customStart ?? today, ce = _customEnd ?? today;
         final span = ce.difference(cs).inDays + 1;
@@ -677,5 +677,16 @@ class _HomeScreenState extends State<HomeScreen> {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
   ];
 
+  static const _monthsFull = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  static const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
   String _fmtDay(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+
+  /// Weekday + full date for single-day labels, e.g. "Mon, 14 July 2026".
+  String _fmtDayFull(DateTime d) =>
+      '${_weekdays[d.weekday - 1]}, ${d.day} ${_monthsFull[d.month - 1]} ${d.year}';
 }

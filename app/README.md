@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.57
+
+- **Weekday in single-day octagon label** — *Today* and *Custom: single day*
+  now show the weekday and full month, e.g. "Mon, 14 July 2026" instead of
+  "14 Jul 2026". Ranges are unchanged.
+
 ## What's new in 0.56
 
 - **Tap-to-log lands on the day you're viewing** — on a single-day octagon view
