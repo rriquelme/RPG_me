@@ -17,11 +17,16 @@ class LogScreen extends StatefulWidget {
   /// Pre-select this category when opening a fresh log (e.g. from tapping an
   /// octagon axis). Ignored when editing an [existing] entry.
   final String? initialAxisKey;
+
+  /// Pre-fill the "when" for a fresh log (e.g. logging onto a past day you're
+  /// viewing on the octagon). Ignored when editing an [existing] entry.
+  final DateTime? initialWhen;
   const LogScreen({
     super.key,
     required this.repo,
     this.existing,
     this.initialAxisKey,
+    this.initialWhen,
   });
 
   @override
@@ -68,6 +73,8 @@ class _LogScreenState extends State<LogScreen> {
       _hidden = ex.hidden;
       if (ex.number != null) _numberController.text = _fmtNum(ex.number!);
       if (ex.percentage != null) _percentController.text = _fmtNum(ex.percentage!);
+    } else if (widget.initialWhen != null) {
+      _when = widget.initialWhen!;
     }
     final a = widget.repo.axesConfig;
     _axes = a;

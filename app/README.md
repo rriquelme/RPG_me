@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.56
+
+- **Tap-to-log lands on the day you're viewing** — on a single-day octagon view
+  (*Today* / *Custom: single day*) navigated to a **past** day, tapping a
+  category to log pre-fills the entry's date to that day at midday. Today and
+  multi-day ranges still default to now.
+
 ## What's new in 0.55
 
 - **Bar chart always shows the latest day** — switching to a metric with decimal

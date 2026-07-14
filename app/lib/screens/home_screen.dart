@@ -429,8 +429,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _logForCategory(String axisKey) async {
     final repo = _repo;
     if (repo == null) return;
+    // On a single-day view (Today / Custom: single day) of a PAST day, pre-fill
+    // the log's date to that day at midday. Today and multi-day ranges keep the
+    // default (now).
+    DateTime? initialWhen;
+    if (_periodKey == 'today' || _periodKey == 'custom_day') {
+      final start = _windowFor(_navOffset).start;
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      if (start != null && start.isBefore(today)) {
+        initialWhen = DateTime(start.year, start.month, start.day, 12);
+      }
+    }
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => LogScreen(repo: repo, initialAxisKey: axisKey)),
+      MaterialPageRoute(
+        builder: (_) => LogScreen(
+            repo: repo, initialAxisKey: axisKey, initialWhen: initialWhen)),
     );
     // Always reload — the Log screen can also toggle a category's hidden flag.
     _reload();
