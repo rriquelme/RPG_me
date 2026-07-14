@@ -241,7 +241,8 @@ class _TimersScreenState extends State<TimersScreen> {
     subCtrl.dispose();
     if (created == true) {
       var name = nameController.text.trim();
-      if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
+      // Fall back to the category's own label (keeping its capitalisation).
+      if (name.isEmpty) name = _axisOf(st.axisKey)?.label ?? st.axisKey;
       setState(() {
         _timers.add(TimerEntry(
           id: TimerEntry.newId(),
@@ -334,7 +335,8 @@ class _TimersScreenState extends State<TimersScreen> {
     subCtrl.dispose();
     if (ok == true) {
       var name = nameController.text.trim();
-      if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
+      // Fall back to the category's own label (keeping its capitalisation).
+      if (name.isEmpty) name = _axisOf(st.axisKey)?.label ?? st.axisKey;
       setState(() {
         t.axisKey = st.axisKey;
         t.subcategory = st.subKey ?? '';

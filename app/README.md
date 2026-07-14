@@ -26,6 +26,11 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.60
+
+- **Timers keep the category's capitalisation** — a timer with no activity name
+  now shows the category's own label (e.g. "Health") instead of lowercasing it.
+
 ## What's new in 0.59
 
 - **Timers improvements:**
