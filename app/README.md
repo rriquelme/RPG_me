@@ -26,6 +26,19 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.59
+
+- **Timers improvements:**
+  - A **+** in the app bar (alongside the New timer button).
+  - **Quick timer** — with no timers running, a greyed 0:00 card shows a play
+    button that starts a stopwatch immediately with no category; set the
+    category later via Edit (you'll be asked to pick one when you Stop & save).
+  - **Scroll-wheel** category & subcategory pickers in the New/Edit dialog — spin
+    to select instead of tapping twice.
+  - **Zero-time is fine** — stopping a reset (0:00) timer no longer errors; the
+    Keep / Discard / Save menu always appears and Save logs a no-duration
+    session, just like a Log entry with no time.
+
 ## What's new in 0.58
 
 - **Weekday in single-day octagon label** — *Today* and *Custom: single day*

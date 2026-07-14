@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show FontFeature;
 
+import 'package:flutter/cupertino.dart' show CupertinoPicker;
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
@@ -71,76 +72,127 @@ class _TimersScreenState extends State<TimersScreen> {
     return '$base.$millis';
   }
 
-  /// The category dropdown shared by the New/Edit timer dialogs.
-  Widget _categoryField(_DialogSel st, StateSetter setLocal) {
-    return DropdownButtonFormField<String>(
-      value: st.axisKey,
-      decoration: const InputDecoration(labelText: 'Category'),
-      items: st.axes
-          .map((a) => DropdownMenuItem(
-                value: a.key,
-                child: Row(children: [
-                  Container(width: 12, height: 12, color: colorFromHex(a.colorHex)),
-                  const SizedBox(width: 8),
-                  Text(a.label),
-                ]),
-              ))
-          .toList(),
-      onChanged: (v) => setLocal(() {
-        st.axisKey = v ?? st.axisKey;
-        st.subKey = null; // subcategories are per-category
-      }),
+  /// One centred row in a picker wheel: an optional colour dot + a label.
+  Widget _wheelRow(String label, {Color? dot, bool hidden = false}) {
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot != null) ...[
+            Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
+          if (hidden) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.visibility_off_outlined,
+                size: 14, color: Theme.of(context).disabledColor),
+          ],
+        ],
+      ),
     );
   }
 
-  /// The subcategory dropdown shared by the dialogs — None, then the
-  /// subcategories, then "Create new…" (same behaviour as the Log screen).
-  Widget _subcategoryField(_DialogSel st, StateSetter setLocal) {
+  Widget _labeledWheel(String label, Widget wheel) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          SizedBox(height: 92, child: wheel),
+        ],
+      );
+
+  /// The category scroll wheel shared by the New/Edit timer dialogs. Scrolling
+  /// selects directly (no tap-to-open). Resets the subcategory wheel to None.
+  Widget _categoryWheel(_DialogSel st, StateSetter setLocal,
+      FixedExtentScrollController ctrl, FixedExtentScrollController subCtrl) {
+    return _labeledWheel(
+      'Category',
+      CupertinoPicker(
+        scrollController: ctrl,
+        itemExtent: 28,
+        magnification: 1.1,
+        squeeze: 1.15,
+        useMagnifier: true,
+        onSelectedItemChanged: (i) {
+          if (i < 0 || i >= st.axes.length) return;
+          setLocal(() {
+            st.axisKey = st.axes[i].key;
+            st.subKey = null; // subcategories are per-category
+          });
+          if (subCtrl.hasClients) subCtrl.jumpToItem(0);
+        },
+        children: st.axes
+            .map((a) => _wheelRow(a.label, dot: colorFromHex(a.colorHex)))
+            .toList(),
+      ),
+    );
+  }
+
+  /// The subcategory scroll wheel — None + the category's subcategories, with a
+  /// "New" button to create one on the fly.
+  Widget _subcategoryWheel(
+      _DialogSel st, StateSetter setLocal, FixedExtentScrollController subCtrl) {
     final axis = st.axis;
+    final subs = axis.subcategories;
     Color colorOf(SubcategoryDef s) => s.colorHex.isNotEmpty
         ? colorFromHex(s.colorHex)
         : colorFromHex(axis.colorHex);
-    return DropdownButtonFormField<String?>(
-      value: st.subKey,
-      decoration: const InputDecoration(labelText: 'Subcategory'),
-      items: [
-        const DropdownMenuItem<String?>(value: null, child: Text('None')),
-        ...axis.subcategories.map((s) => DropdownMenuItem<String?>(
-              value: s.name,
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 12, height: 12, color: colorOf(s)),
-                const SizedBox(width: 8),
-                Text(s.name),
-                if (s.hidden) ...[
-                  const SizedBox(width: 6),
-                  Icon(Icons.visibility_off_outlined,
-                      size: 14, color: Theme.of(context).disabledColor),
-                ],
-              ]),
-            )),
-        const DropdownMenuItem<String?>(
-          value: kCreateSubcategory,
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.add, size: 16),
-            SizedBox(width: 8),
-            Text('Create new…'),
-          ]),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text('Subcategory', style: Theme.of(context).textTheme.bodySmall),
+            const Spacer(),
+            TextButton.icon(
+              style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8)),
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('New'),
+              onPressed: () async {
+                final created = await showCreateSubcategoryDialog(
+                    context: context, repo: widget.repo, axis: axis);
+                if (created == null) return;
+                setLocal(() {
+                  st.axes = widget.repo.axesConfig; // pick up the new one
+                  st.subKey = created;
+                });
+                final idx = st.axis.subcategories
+                    .indexWhere((s) => s.name == created);
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (subCtrl.hasClients && idx >= 0) subCtrl.jumpToItem(idx + 1);
+                });
+              },
+            ),
+          ],
+        ),
+        SizedBox(
+          height: 92,
+          child: CupertinoPicker(
+            scrollController: subCtrl,
+            itemExtent: 28,
+            magnification: 1.1,
+            squeeze: 1.15,
+            useMagnifier: true,
+            onSelectedItemChanged: (i) =>
+                setLocal(() => st.subKey = i == 0 ? null : subs[i - 1].name),
+            children: [
+              _wheelRow('None'),
+              ...subs.map((s) =>
+                  _wheelRow(s.name, dot: colorOf(s), hidden: s.hidden)),
+            ],
+          ),
         ),
       ],
-      onChanged: (v) async {
-        if (v == kCreateSubcategory) {
-          final created = await showCreateSubcategoryDialog(
-              context: context, repo: widget.repo, axis: axis);
-          if (created != null) {
-            setLocal(() {
-              st.axes = widget.repo.axesConfig; // pick up the new subcategory
-              st.subKey = created;
-            });
-          }
-          return;
-        }
-        setLocal(() => st.subKey = v);
-      },
     );
   }
 
@@ -149,24 +201,29 @@ class _TimersScreenState extends State<TimersScreen> {
     if (axes.isEmpty) return;
     final st = _DialogSel(axes, axes.first.key);
     final nameController = TextEditingController();
+    final catCtrl = FixedExtentScrollController();
+    final subCtrl = FixedExtentScrollController();
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: const Text('New timer'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _categoryField(st, setLocal),
-              const SizedBox(height: 12),
-              _subcategoryField(st, setLocal),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(
-                    labelText: 'Activity (optional)', hintText: 'study, deep work…'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _categoryWheel(st, setLocal, catCtrl, subCtrl),
+                const SizedBox(height: 8),
+                _subcategoryWheel(st, setLocal, subCtrl),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                      labelText: 'Activity (optional)',
+                      hintText: 'study, deep work…'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -180,6 +237,8 @@ class _TimersScreenState extends State<TimersScreen> {
         ),
       ),
     );
+    catCtrl.dispose();
+    subCtrl.dispose();
     if (created == true) {
       var name = nameController.text.trim();
       if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
@@ -194,6 +253,21 @@ class _TimersScreenState extends State<TimersScreen> {
       });
       await _persist();
     }
+  }
+
+  /// The "shadow" quick timer: start a running stopwatch immediately with no
+  /// category set, so you can time first and label it later via Edit.
+  Future<void> _quickStart() async {
+    setState(() {
+      _timers.add(TimerEntry(
+        id: TimerEntry.newId(),
+        label: '',
+        axisKey: '',
+        subcategory: '',
+        runningSince: DateTime.now(),
+      ));
+    });
+    await _persist();
   }
 
   Future<void> _toggle(TimerEntry t) async {
@@ -220,23 +294,34 @@ class _TimersScreenState extends State<TimersScreen> {
       st.subKey = t.subcategory;
     }
     final nameController = TextEditingController(text: t.label);
+    final catIndex = axes.indexWhere((a) => a.key == axisKey);
+    final subs = startAxis?.subcategories ?? const <SubcategoryDef>[];
+    final subIndex =
+        st.subKey == null ? 0 : subs.indexWhere((s) => s.name == st.subKey) + 1;
+    final catCtrl =
+        FixedExtentScrollController(initialItem: catIndex < 0 ? 0 : catIndex);
+    final subCtrl =
+        FixedExtentScrollController(initialItem: subIndex < 0 ? 0 : subIndex);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
           title: const Text('Edit timer'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _categoryField(st, setLocal),
-              const SizedBox(height: 12),
-              _subcategoryField(st, setLocal),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Activity (optional)'),
-              ),
-            ],
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _categoryWheel(st, setLocal, catCtrl, subCtrl),
+                const SizedBox(height: 8),
+                _subcategoryWheel(st, setLocal, subCtrl),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: nameController,
+                  decoration:
+                      const InputDecoration(labelText: 'Activity (optional)'),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
@@ -245,6 +330,8 @@ class _TimersScreenState extends State<TimersScreen> {
         ),
       ),
     );
+    catCtrl.dispose();
+    subCtrl.dispose();
     if (ok == true) {
       var name = nameController.text.trim();
       if (name.isEmpty) name = (_axisOf(st.axisKey)?.label ?? st.axisKey).toLowerCase();
@@ -263,20 +350,19 @@ class _TimersScreenState extends State<TimersScreen> {
   }
 
   /// Pressing stop pauses the timer and asks whether to save or discard it.
+  /// A zero-time timer is fine — it just logs a no-duration tally, like a Log
+  /// entry with no time. The Keep / Discard / Save menu always shows.
   Future<void> _stopConfirm(TimerEntry t) async {
     setState(() => t.pause());
     await _persist();
     final seconds = t.elapsedSeconds;
-    if (seconds < 1) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Timer has no time yet.')));
-      return;
-    }
     final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Stop “${t.label}”?'),
-        content: Text('Save ${formatHms(seconds)} to this category, or discard it?'),
+        content: Text(seconds > 0
+            ? 'Save ${formatHms(seconds)} to this category, or discard it?'
+            : 'Log this session with no time to this category, or discard it?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Keep timer')),
           TextButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Discard')),
@@ -285,13 +371,19 @@ class _TimersScreenState extends State<TimersScreen> {
       ),
     );
     if (choice == 'save') {
+      // A quick/shadow timer may have no category yet — set one before logging.
+      if (_axisOf(t.axisKey) == null) {
+        await _edit(t);
+        if (_axisOf(t.axisKey) == null) return; // still none — keep the timer
+      }
       await widget.repo.log(t.axisKey, t.label,
           seconds: seconds, subcategory: t.subcategory);
       setState(() => _timers.remove(t));
       await _persist();
       if (mounted) {
+        final what = seconds > 0 ? formatHms(seconds) : 'a session';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved ${formatHms(seconds)} to ${t.label}.')),
+          SnackBar(content: Text('Saved $what to ${t.label}.')),
         );
       }
     } else if (choice == 'discard') {
@@ -302,29 +394,90 @@ class _TimersScreenState extends State<TimersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Timers')),
+      appBar: AppBar(
+        title: const Text('Timers'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'New timer',
+            onPressed: _add,
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         icon: const Icon(Icons.add),
         label: const Text('New timer'),
       ),
       body: _timers.isEmpty
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'No timers yet.\n\nTap “New timer” to start one — you can run '
-                  'several at the same time. Each timer banks time against a '
-                  'category; press Stop to save it.',
-                  textAlign: TextAlign.center,
+          ? ListView(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
+              children: [
+                _shadowCard(),
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Text(
+                    'Tap the play button above to start timing right away (no '
+                    'category — set it later with Edit), or “New timer” to pick '
+                    'a category first. You can run several at once; press Stop '
+                    'to save.',
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
+              ],
             )
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
               itemCount: _timers.length,
               itemBuilder: (context, i) => _timerCard(_timers[i]),
             ),
+    );
+  }
+
+  /// A greyed-out 0:00 card shown when there are no timers: press play to
+  /// quick-start one with no category.
+  Widget _shadowCard() {
+    final theme = Theme.of(context);
+    final faded = theme.disabledColor;
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(backgroundColor: faded, radius: 8),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Quick timer',
+                      style: theme.textTheme.titleMedium?.copyWith(color: faded)),
+                ),
+                Text('no category', style: theme.textTheme.bodySmall),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                _display(0),
+                style: theme.textTheme.displaySmall?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: faded,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: FilledButton.icon(
+                onPressed: _quickStart,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -361,13 +514,14 @@ class _TimersScreenState extends State<TimersScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      t.label,
-                      style: theme.textTheme.titleMedium,
+                      t.label.isEmpty ? 'Untitled timer' : t.label,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                          color: t.label.isEmpty ? theme.disabledColor : null),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   Text(
-                    '${axis?.label ?? t.axisKey}'
+                    '${axis?.label ?? (t.axisKey.isEmpty ? "no category" : t.axisKey)}'
                     '${t.subcategory.isNotEmpty ? " › ${t.subcategory}" : ""}'
                     ' · ${t.isRunning ? "running" : "paused"}',
                     style: theme.textTheme.bodySmall,
