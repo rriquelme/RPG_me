@@ -26,11 +26,11 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
-## What's new in 0.57
+## What's new in 0.58
 
 - **Weekday in single-day octagon label** — *Today* and *Custom: single day*
-  now show the weekday and full month, e.g. "Mon, 14 July 2026" instead of
-  "14 Jul 2026". Ranges are unchanged.
+  now show the weekday, e.g. "Mon, 14 Jul 2026" instead of "14 Jul 2026".
+  Ranges are unchanged.
 
 ## What's new in 0.56
 
