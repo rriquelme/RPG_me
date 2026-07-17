@@ -73,6 +73,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setEnableCountdown(bool on) async {
+    await Settings.saveEnableCountdown(on);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(enableCountdown: on));
+    setState(() {});
+  }
+
   Future<void> _setTrackNumber(bool on) async {
     await Settings.saveTrackNumber(on);
     await widget.repo
@@ -166,6 +173,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             value: widget.repo.settings.showDashboardOnLog,
             onChanged: _setShowDashboard,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Countdown timers'),
+            subtitle: const Text(
+              'Add a countdown option to timers: set a duration, get a '
+              'notification at zero, then it keeps counting overtime.',
+            ),
+            value: widget.repo.settings.enableCountdown,
+            onChanged: _setEnableCountdown,
           ),
           const Divider(height: 40),
           Text('Extra metrics', style: Theme.of(context).textTheme.titleMedium),

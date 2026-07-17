@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:ui' show FontFeature;
 
-import 'package:flutter/cupertino.dart' show CupertinoPicker;
+import 'package:flutter/cupertino.dart'
+    show CupertinoPicker, CupertinoTimerPicker, CupertinoTimerPickerMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 import '../local/local_engine.dart';
 import '../local/timer_entry.dart';
 import '../models.dart';
+import '../notifications.dart';
 import '../repository.dart';
 import '../widgets/subcategory_dialogs.dart';
 
@@ -40,7 +42,11 @@ class _TimersScreenState extends State<TimersScreen> {
   void initState() {
     super.initState();
     widget.repo.loadTimers().then((t) {
-      if (mounted) setState(() => _timers = t);
+      if (!mounted) return;
+      setState(() => _timers = t);
+      for (final tm in t) {
+        _syncNotification(tm); // re-arm any running countdowns
+      }
     });
     // Fast tick so the milliseconds move and it feels alive.
     _ticker = Timer.periodic(const Duration(milliseconds: 50), (_) {
@@ -70,6 +76,22 @@ class _TimersScreenState extends State<TimersScreen> {
     final millis = (ms % 1000).toString().padLeft(3, '0');
     final base = h > 0 ? '$h:${two(m)}:${two(s)}' : '${two(m)}:${two(s)}';
     return '$base.$millis';
+  }
+
+  /// Big number for a countdown: remaining time, or "+overtime" once past zero.
+  String _countdownDisplay(TimerEntry t) {
+    final rem = t.remainingMs;
+    return rem < 0 ? '+${_display(-rem)}' : _display(rem);
+  }
+
+  /// Schedule (or cancel) this timer's zero-notification to match its state.
+  Future<void> _syncNotification(TimerEntry t) async {
+    final z = t.zeroAt; // running countdown with time left
+    if (z != null) {
+      await Notifications.scheduleCountdown(t.id, t.label, z);
+    } else {
+      await Notifications.cancel(t.id);
+    }
   }
 
   /// One centred row in a picker wheel: an optional colour dot + a label.
@@ -203,6 +225,8 @@ class _TimersScreenState extends State<TimersScreen> {
     final nameController = TextEditingController();
     final catCtrl = FixedExtentScrollController();
     final subCtrl = FixedExtentScrollController();
+    var countdown = false;
+    var dur = const Duration(minutes: 25);
     final created = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -222,6 +246,8 @@ class _TimersScreenState extends State<TimersScreen> {
                       labelText: 'Activity (optional)',
                       hintText: 'study, deep work…'),
                 ),
+                ..._countdownFields(setLocal, countdown, dur,
+                    (v) => countdown = v, (d) => dur = d),
               ],
             ),
           ),
@@ -243,17 +269,43 @@ class _TimersScreenState extends State<TimersScreen> {
       var name = nameController.text.trim();
       // Fall back to the category's own label (keeping its capitalisation).
       if (name.isEmpty) name = _axisOf(st.axisKey)?.label ?? st.axisKey;
-      setState(() {
-        _timers.add(TimerEntry(
-          id: TimerEntry.newId(),
-          label: name,
-          axisKey: st.axisKey,
-          subcategory: st.subKey ?? '',
-          runningSince: DateTime.now(),
-        ));
-      });
+      final t = TimerEntry(
+        id: TimerEntry.newId(),
+        label: name,
+        axisKey: st.axisKey,
+        subcategory: st.subKey ?? '',
+        runningSince: DateTime.now(),
+        targetMs: countdown ? dur.inMilliseconds : 0,
+      );
+      setState(() => _timers.add(t));
+      await _syncNotification(t);
       await _persist();
     }
+  }
+
+  /// The optional Countdown switch + duration wheel for the New/Edit dialogs
+  /// (only shown when the Countdown setting is on).
+  List<Widget> _countdownFields(StateSetter setLocal, bool countdown,
+      Duration dur, ValueChanged<bool> onToggle, ValueChanged<Duration> onDur) {
+    if (!widget.repo.settings.enableCountdown) return const [];
+    return [
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: const Text('Countdown'),
+        subtitle: const Text('Notify at zero, then keep counting.'),
+        value: countdown,
+        onChanged: (v) => setLocal(() => onToggle(v)),
+      ),
+      if (countdown)
+        SizedBox(
+          height: 110,
+          child: CupertinoTimerPicker(
+            mode: CupertinoTimerPickerMode.hms,
+            initialTimerDuration: dur,
+            onTimerDurationChanged: onDur,
+          ),
+        ),
+    ];
   }
 
   /// The "shadow" quick timer: start a running stopwatch immediately with no
@@ -273,11 +325,13 @@ class _TimersScreenState extends State<TimersScreen> {
 
   Future<void> _toggle(TimerEntry t) async {
     setState(() => t.isRunning ? t.pause() : t.start());
+    await _syncNotification(t);
     await _persist();
   }
 
   Future<void> _reset(TimerEntry t) async {
     setState(() => t.reset());
+    await _syncNotification(t);
     await _persist();
   }
 
@@ -303,6 +357,10 @@ class _TimersScreenState extends State<TimersScreen> {
         FixedExtentScrollController(initialItem: catIndex < 0 ? 0 : catIndex);
     final subCtrl =
         FixedExtentScrollController(initialItem: subIndex < 0 ? 0 : subIndex);
+    var countdown = t.isCountdown;
+    var dur = t.isCountdown
+        ? Duration(milliseconds: t.targetMs)
+        : const Duration(minutes: 25);
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -321,6 +379,8 @@ class _TimersScreenState extends State<TimersScreen> {
                   decoration:
                       const InputDecoration(labelText: 'Activity (optional)'),
                 ),
+                ..._countdownFields(setLocal, countdown, dur,
+                    (v) => countdown = v, (d) => dur = d),
               ],
             ),
           ),
@@ -341,12 +401,15 @@ class _TimersScreenState extends State<TimersScreen> {
         t.axisKey = st.axisKey;
         t.subcategory = st.subKey ?? '';
         t.label = name;
+        t.targetMs = countdown ? dur.inMilliseconds : 0;
       });
+      await _syncNotification(t);
       await _persist();
     }
   }
 
   Future<void> _discard(TimerEntry t) async {
+    await Notifications.cancel(t.id);
     setState(() => _timers.remove(t));
     await _persist();
   }
@@ -356,23 +419,52 @@ class _TimersScreenState extends State<TimersScreen> {
   /// entry with no time. The Keep / Discard / Save menu always shows.
   Future<void> _stopConfirm(TimerEntry t) async {
     setState(() => t.pause());
+    await Notifications.cancel(t.id);
     await _persist();
-    final seconds = t.elapsedSeconds;
+    final total = t.elapsedSeconds;
+    final countdownSecs = t.isCountdown ? t.targetMs ~/ 1000 : total;
+    // Only offer the split when the countdown actually ran into overtime.
+    final hasOvertime = t.isCountdown && total > countdownSecs;
+
+    final actions = <Widget>[
+      TextButton(
+          onPressed: () => Navigator.pop(context, 'cancel'),
+          child: const Text('Keep timer')),
+      TextButton(
+          onPressed: () => Navigator.pop(context, 'discard'),
+          child: const Text('Discard')),
+    ];
+    Widget content;
+    if (hasOvertime) {
+      content = Text(
+          'Total ${formatHms(total)} — countdown ${formatHms(countdownSecs)} '
+          '+ overtime ${formatHms(total - countdownSecs)}. What do you want to '
+          'log?');
+      actions.add(TextButton(
+          onPressed: () => Navigator.pop(context, 'save_countdown'),
+          child: const Text('Log countdown')));
+      actions.add(FilledButton(
+          onPressed: () => Navigator.pop(context, 'save_all'),
+          child: const Text('Log all')));
+    } else {
+      content = Text(total > 0
+          ? 'Save ${formatHms(total)} to this category, or discard it?'
+          : 'Log this session with no time to this category, or discard it?');
+      actions.add(FilledButton(
+          onPressed: () => Navigator.pop(context, 'save_all'),
+          child: const Text('Save')));
+    }
+
     final choice = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Stop “${t.label}”?'),
-        content: Text(seconds > 0
-            ? 'Save ${formatHms(seconds)} to this category, or discard it?'
-            : 'Log this session with no time to this category, or discard it?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, 'cancel'), child: const Text('Keep timer')),
-          TextButton(onPressed: () => Navigator.pop(context, 'discard'), child: const Text('Discard')),
-          FilledButton(onPressed: () => Navigator.pop(context, 'save'), child: const Text('Save')),
-        ],
+        content: content,
+        actions: actions,
       ),
     );
-    if (choice == 'save') {
+    if (choice == 'save_all' || choice == 'save_countdown') {
+      final seconds = choice == 'save_countdown' ? countdownSecs : total;
       // A quick/shadow timer may have no category yet — set one before logging.
       if (_axisOf(t.axisKey) == null) {
         await _edit(t);
@@ -537,15 +629,35 @@ class _TimersScreenState extends State<TimersScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  _display(t.elapsedMs),
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                    color: t.isRunning ? theme.colorScheme.primary : null,
-                  ),
-                ),
-              ),
+              Builder(builder: (_) {
+                final overtime = t.isCountdown && t.remainingMs < 0;
+                final numberColor = overtime
+                    ? theme.colorScheme.error
+                    : (t.isRunning ? theme.colorScheme.primary : null);
+                return Column(
+                  children: [
+                    Center(
+                      child: Text(
+                        t.isCountdown
+                            ? _countdownDisplay(t)
+                            : _display(t.elapsedMs),
+                        style: theme.textTheme.displaySmall?.copyWith(
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                          color: numberColor,
+                        ),
+                      ),
+                    ),
+                    if (t.isCountdown)
+                      Text(
+                        overtime
+                            ? 'overtime · total ${formatHms(t.elapsedSeconds)}'
+                            : 'countdown ${formatHms(t.targetMs ~/ 1000)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: overtime ? theme.colorScheme.error : null),
+                      ),
+                  ],
+                );
+              }),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,

@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.62
+
+- **Countdown timers** (opt-in) — turn on *Settings → Logging → Countdown
+  timers*, then a New/Edit timer gets a **Countdown** switch + duration. The
+  timer counts **down** to zero, fires a **notification** at zero, and then keeps
+  running into **overtime** (shown in red). When you Stop, you choose **Log all**
+  (countdown + overtime), **Log countdown** (just the set duration), or Discard.
+  The notification uses Android's local notifications; on first use it asks for
+  notification permission.
+
 ## What's new in 0.61
 
 - **Names keep their capitalisation** — logged activity names are no longer

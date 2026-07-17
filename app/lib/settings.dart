@@ -18,6 +18,7 @@ class Settings {
   static const _kDayNumbers = 'show_day_numbers';
   static const _kOctagonScale = 'octagon_scale';
   static const _kPercentageMode = 'percentage_mode';
+  static const _kEnableCountdown = 'enable_countdown';
 
   final String baseUrl;
   final String user;
@@ -33,6 +34,7 @@ class Settings {
   final bool showDayNumbers; // day-of-month numbers in the activity heatmaps
   final String octagonScale; // 'linear' | 'log' | 'log2'
   final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
+  final bool enableCountdown; // show the countdown option on timers
 
   const Settings({
     required this.baseUrl,
@@ -49,6 +51,7 @@ class Settings {
     this.showDayNumbers = false,
     this.octagonScale = 'log2',
     this.percentageMode = 'latest',
+    this.enableCountdown = false,
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -68,6 +71,7 @@ class Settings {
     bool? showDayNumbers,
     String? octagonScale,
     String? percentageMode,
+    bool? enableCountdown,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -86,6 +90,7 @@ class Settings {
         showDayNumbers: showDayNumbers ?? this.showDayNumbers,
         octagonScale: octagonScale ?? this.octagonScale,
         percentageMode: percentageMode ?? this.percentageMode,
+        enableCountdown: enableCountdown ?? this.enableCountdown,
       );
 
   static Future<Settings> load() async {
@@ -105,7 +110,13 @@ class Settings {
       showDayNumbers: prefs.getBool(_kDayNumbers) ?? false,
       octagonScale: _validScale(prefs.getString(_kOctagonScale)),
       percentageMode: prefs.getString(_kPercentageMode) ?? 'latest',
+      enableCountdown: prefs.getBool(_kEnableCountdown) ?? false,
     );
+  }
+
+  static Future<void> saveEnableCountdown(bool on) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kEnableCountdown, on);
   }
 
   static Future<void> savePercentageMode(String mode) async {

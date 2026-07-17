@@ -61,6 +61,34 @@ jobs:
             sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/' "$f"
             sed -i 's/compileSdkVersion flutter.compileSdkVersion/compileSdkVersion 36/' "$f"
           done
+          # flutter_local_notifications needs Java 8+ core-library desugaring.
+          python3 - <<'PY'
+          import os
+          k = 'android/app/build.gradle.kts'
+          g = 'android/app/build.gradle'
+          if os.path.exists(k):
+              s = open(k).read()
+              if 'isCoreLibraryDesugaringEnabled' not in s:
+                  s = s.replace('compileOptions {',
+                      'compileOptions {\n        isCoreLibraryDesugaringEnabled = true', 1)
+              if 'coreLibraryDesugaring(' not in s:
+                  s += ('\ndependencies {\n'
+                        '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n'
+                        '}\n')
+              open(k, 'w').write(s)
+              print('Desugaring enabled (kts).')
+          elif os.path.exists(g):
+              s = open(g).read()
+              if 'coreLibraryDesugaringEnabled' not in s:
+                  s = s.replace('compileOptions {',
+                      'compileOptions {\n        coreLibraryDesugaringEnabled true', 1)
+              if 'coreLibraryDesugaring ' not in s:
+                  s += ('\ndependencies {\n'
+                        '    coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.4"\n'
+                        '}\n')
+              open(g, 'w').write(s)
+              print('Desugaring enabled (groovy).')
+          PY
           if [ -f android/build.gradle.kts ]; then
             cat >> android/build.gradle.kts <<'GRADLE'
 
@@ -167,10 +195,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]') }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.61.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.62.0' }}
           target_commitish: ${{ github.sha }}
           files: app/rpg_me.apk
-          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.61.0' }}
+          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.62.0' }}
           body: |
             **Offline-first RPG_me — Android app.**
 

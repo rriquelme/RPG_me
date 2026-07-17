@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 
+import 'notifications.dart';
 import 'screens/home_screen.dart';
 
-void main() => runApp(const RpgMeApp());
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  Notifications.init(); // best-effort; countdown-timer alerts
+  runApp(const RpgMeApp());
+}
 
 class RpgMeApp extends StatelessWidget {
   const RpgMeApp({super.key});

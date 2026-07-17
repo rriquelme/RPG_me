@@ -11,6 +11,7 @@ class TimerEntry {
   String subcategory; // optional subcategory within the category
   int accumulatedMs; // banked time while paused
   DateTime? runningSince; // non-null while running
+  int targetMs; // countdown length in ms; 0 = plain count-up stopwatch
 
   TimerEntry({
     required this.id,
@@ -19,9 +20,26 @@ class TimerEntry {
     this.subcategory = '',
     this.accumulatedMs = 0,
     this.runningSince,
+    this.targetMs = 0,
   });
 
   bool get isRunning => runningSince != null;
+
+  /// Whether this is a countdown timer.
+  bool get isCountdown => targetMs > 0;
+
+  /// Remaining ms until zero (negative once it's into overtime). Only meaningful
+  /// for a countdown timer.
+  int get remainingMs => targetMs - elapsedMs;
+
+  /// The moment this countdown hits zero given the current run, or null if it's
+  /// not a running countdown that still has time left.
+  DateTime? get zeroAt {
+    if (!isCountdown || runningSince == null) return null;
+    final left = remainingMs;
+    if (left <= 0) return null;
+    return DateTime.now().add(Duration(milliseconds: left));
+  }
 
   int get elapsedMs {
     var total = accumulatedMs;
@@ -57,6 +75,7 @@ class TimerEntry {
         if (subcategory.isNotEmpty) 'subcategory': subcategory,
         'accumulated_ms': accumulatedMs,
         'running_since': runningSince?.toIso8601String(),
+        if (targetMs > 0) 'target_ms': targetMs,
       };
 
   factory TimerEntry.fromJson(Map<String, dynamic> j) => TimerEntry(
@@ -70,6 +89,7 @@ class TimerEntry {
         runningSince: j['running_since'] != null
             ? DateTime.parse(j['running_since'] as String)
             : null,
+        targetMs: (j['target_ms'] as int?) ?? 0,
       );
 
   static final _rand = Random();
