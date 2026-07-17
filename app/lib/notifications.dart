@@ -62,6 +62,8 @@ class Notifications {
         tz.TZDateTime.from(when, tz.local),
         const NotificationDetails(android: _android),
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (_) {
       // ignore scheduling errors (e.g. permission not granted)
