@@ -89,6 +89,19 @@ jobs:
               open(g, 'w').write(s)
               print('Desugaring enabled (groovy).')
           PY
+          # Declare notification + exact-alarm permissions for countdown timers.
+          python3 - <<'PY'
+          m = 'android/app/src/main/AndroidManifest.xml'
+          s = open(m).read()
+          perms = ('    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n'
+                   '    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>\n'
+                   '    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>\n'
+                   '    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n')
+          if 'POST_NOTIFICATIONS' not in s:
+              s = s.replace('<application', perms + '    <application', 1)
+              open(m, 'w').write(s)
+              print('Notification permissions added.')
+          PY
           if [ -f android/build.gradle.kts ]; then
             cat >> android/build.gradle.kts <<'GRADLE'
 
@@ -195,10 +208,10 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]') }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.62.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.63.0' }}
           target_commitish: ${{ github.sha }}
           files: app/rpg_me.apk
-          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.62.0' }}
+          name: RPG_me ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'app-v0.63.0' }}
           body: |
             **Offline-first RPG_me — Android app.**
 

@@ -37,6 +37,8 @@ class TimersScreen extends StatefulWidget {
 class _TimersScreenState extends State<TimersScreen> {
   List<TimerEntry> _timers = [];
   Timer? _ticker;
+  // Countdown timers that have already fired their zero alert this run.
+  final Set<String> _alerted = {};
 
   @override
   void initState() {
@@ -50,8 +52,22 @@ class _TimersScreenState extends State<TimersScreen> {
     });
     // Fast tick so the milliseconds move and it feels alive.
     _ticker = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (mounted && _timers.any((t) => t.isRunning)) setState(() {});
+      if (!mounted) return;
+      _checkCountdownAlerts();
+      if (_timers.any((t) => t.isRunning)) setState(() {});
     });
+  }
+
+  /// Fire the zero alert (once) the moment a running countdown hits zero while
+  /// the app is open; the scheduled notification covers the backgrounded case.
+  void _checkCountdownAlerts() {
+    for (final t in _timers) {
+      if (t.isRunning && t.isCountdown && t.remainingMs <= 0) {
+        if (_alerted.add(t.id)) Notifications.alertNow(t.id, t.label);
+      } else if (!t.isRunning || t.remainingMs > 0) {
+        _alerted.remove(t.id);
+      }
+    }
   }
 
   @override
@@ -84,13 +100,29 @@ class _TimersScreenState extends State<TimersScreen> {
     return rem < 0 ? '+${_display(-rem)}' : _display(rem);
   }
 
-  /// Schedule (or cancel) this timer's zero-notification to match its state.
+  /// Match this timer's notifications (ongoing counter + countdown alert) to
+  /// its current state.
   Future<void> _syncNotification(TimerEntry t) async {
-    final z = t.zeroAt; // running countdown with time left
+    if (!t.isRunning) {
+      await Notifications.cancelAll(t.id);
+      return;
+    }
+    // Ongoing status-bar counter: the system ticks it from [whenMs].
+    final title = t.label.isEmpty ? 'Timer' : t.label;
+    final body = _axisOf(t.axisKey)?.label ?? '';
+    final now = DateTime.now();
+    final whenMs = t.isCountdown
+        ? now.add(Duration(milliseconds: t.remainingMs)).millisecondsSinceEpoch
+        : now
+            .subtract(Duration(milliseconds: t.elapsedMs))
+            .millisecondsSinceEpoch;
+    await Notifications.showOngoing(t.id, title, body, whenMs, t.isCountdown);
+    // Countdown zero alert (only while it still has time to run).
+    final z = t.zeroAt;
     if (z != null) {
       await Notifications.scheduleCountdown(t.id, t.label, z);
     } else {
-      await Notifications.cancel(t.id);
+      await Notifications.cancelAlert(t.id);
     }
   }
 
@@ -278,6 +310,7 @@ class _TimersScreenState extends State<TimersScreen> {
         targetMs: countdown ? dur.inMilliseconds : 0,
       );
       setState(() => _timers.add(t));
+      if (t.isCountdown) await Notifications.ensurePermissions();
       await _syncNotification(t);
       await _persist();
     }
@@ -403,13 +436,14 @@ class _TimersScreenState extends State<TimersScreen> {
         t.label = name;
         t.targetMs = countdown ? dur.inMilliseconds : 0;
       });
+      if (countdown) await Notifications.ensurePermissions();
       await _syncNotification(t);
       await _persist();
     }
   }
 
   Future<void> _discard(TimerEntry t) async {
-    await Notifications.cancel(t.id);
+    await Notifications.cancelAll(t.id);
     setState(() => _timers.remove(t));
     await _persist();
   }
@@ -419,7 +453,7 @@ class _TimersScreenState extends State<TimersScreen> {
   /// entry with no time. The Keep / Discard / Save menu always shows.
   Future<void> _stopConfirm(TimerEntry t) async {
     setState(() => t.pause());
-    await Notifications.cancel(t.id);
+    await Notifications.cancelAll(t.id);
     await _persist();
     final total = t.elapsedSeconds;
     final countdownSecs = t.isCountdown ? t.targetMs ~/ 1000 : total;

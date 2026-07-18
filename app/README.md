@@ -26,6 +26,16 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.63
+
+- **Live timer notification** — a running timer now shows an **ongoing counter in
+  the status bar** that ticks on its own (counts up, or counts down and into
+  negative overtime for a countdown).
+- **Countdown alert fixes** — the zero alert now fires **immediately** when the
+  app is open and is **exact-scheduled** for when it's closed; the app requests
+  notification + exact-alarm permission when you set up a countdown. (Manifest
+  now declares POST_NOTIFICATIONS / USE_EXACT_ALARM.)
+
 ## What's new in 0.62
 
 - **Countdown timers** (opt-in) — turn on *Settings → Logging → Countdown
