@@ -10,7 +10,12 @@ import 'log_screen.dart';
 /// filtering (date range, category, subcategory), plus edit and delete.
 class LoggedScreen extends StatefulWidget {
   final Repository repo;
-  const LoggedScreen({super.key, required this.repo});
+  // Optional initial date filter (inclusive days) — used to open the log
+  // history pre-filtered to the octagon chart's selected timeframe.
+  final DateTime? initialFrom;
+  final DateTime? initialTo;
+  const LoggedScreen(
+      {super.key, required this.repo, this.initialFrom, this.initialTo});
 
   @override
   State<LoggedScreen> createState() => _LoggedScreenState();
@@ -22,6 +27,13 @@ class _LoggedScreenState extends State<LoggedScreen> {
   String? _filterSub; // null = all subcategories
   DateTime? _from; // inclusive day
   DateTime? _to; // inclusive day
+
+  @override
+  void initState() {
+    super.initState();
+    _from = widget.initialFrom;
+    _to = widget.initialTo;
+  }
 
   AxisDef? _axisOf(String key) {
     for (final a in widget.repo.axesConfig) {

@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.64
+
+- **Two log buttons under the octagon chart** — the left button opens the log
+  history pre-filtered to the **same timeframe** the chart is showing (its label
+  is the selected window, e.g. a week or month); **All logs** opens the full
+  unfiltered history.
+
 ## What's new in 0.63
 
 - **Live timer notification** — a running timer now shows an **ongoing counter in

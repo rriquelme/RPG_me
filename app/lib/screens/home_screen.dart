@@ -621,10 +621,32 @@ class _HomeScreenState extends State<HomeScreen> {
         _periodNav(context),
         const SizedBox(height: 8),
         Center(
-          child: OutlinedButton.icon(
-            onPressed: () => _push(LoggedScreen(repo: repo)),
-            icon: const Icon(Icons.list_alt),
-            label: const Text('View logs'),
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              // Left: logs for the same timeframe the chart is showing.
+              OutlinedButton.icon(
+                onPressed: () {
+                  final w = _windowFor(_navOffset);
+                  _push(LoggedScreen(
+                    repo: repo,
+                    initialFrom: w.start,
+                    initialTo: w.end?.subtract(const Duration(days: 1)),
+                  ));
+                },
+                icon: const Icon(Icons.filter_alt_outlined),
+                label: Text(_windowFor(_navOffset).label),
+              ),
+              // Right: the full, unfiltered history.
+              OutlinedButton.icon(
+                onPressed: () => _push(LoggedScreen(repo: repo)),
+                icon: const Icon(Icons.list_alt),
+                label: const Text('All logs'),
+              ),
+            ],
           ),
         ),
       ],
