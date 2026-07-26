@@ -464,13 +464,13 @@ class _HomeScreenState extends State<HomeScreen> {
             switchOutCurve: Curves.easeInCubic,
             transitionBuilder: (child, animation) {
               // A full edge-to-edge carousel slide like the metric pager: the
-              // incoming window enters from one side while the outgoing one
-              // leaves the other. Forward (+1) slides content left, back (-1)
-              // slides it right.
+              // incoming window enters from the side you swipe from while the
+              // outgoing one leaves the other. Swiping right (back, -1) brings
+              // the new window in from the left, and vice-versa.
               final incoming = animation.status == AnimationStatus.forward ||
                   animation.status == AnimationStatus.completed;
               final sign =
-                  (incoming ? _enterDir : -_enterDir).toDouble();
+                  (incoming ? -_enterDir : _enterDir).toDouble();
               return SlideTransition(
                 position: Tween<Offset>(
                         begin: Offset(sign, 0), end: Offset.zero)

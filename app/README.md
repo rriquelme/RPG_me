@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.68
+
+- **Timeframe swipe direction fixed** — the new window now slides in from the
+  side you swipe from (swiping right brings the previous window in from the
+  left), instead of the mirrored direction.
+
 ## What's new in 0.67
 
 - **Timeframe swipe animation** now matches the old metric-swipe: a full
