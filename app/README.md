@@ -26,6 +26,14 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.65
+
+- **Metric order** on the chart is now **Time, Frequency**, then Number and
+  Percent (the last two when enabled).
+- **Chart swipe behaviour** (Settings → Octagon) — swiping the chart left/right
+  now **steps the timeframe** by default (same as the ‹ › arrows). Switch it to
+  **Metric** to get the old behaviour (swipe cycles through the metrics).
+
 ## What's new in 0.64
 
 - **Two log buttons under the octagon chart** — the left button opens the log

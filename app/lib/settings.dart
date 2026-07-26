@@ -19,6 +19,7 @@ class Settings {
   static const _kOctagonScale = 'octagon_scale';
   static const _kPercentageMode = 'percentage_mode';
   static const _kEnableCountdown = 'enable_countdown';
+  static const _kChartSwipe = 'chart_swipe';
 
   final String baseUrl;
   final String user;
@@ -35,6 +36,7 @@ class Settings {
   final String octagonScale; // 'linear' | 'log' | 'log2'
   final String percentageMode; // 'sum' | 'latest' — how the % axis aggregates
   final bool enableCountdown; // show the countdown option on timers
+  final String chartSwipe; // 'timeframe' (swipe changes window) | 'metric'
 
   const Settings({
     required this.baseUrl,
@@ -52,6 +54,7 @@ class Settings {
     this.octagonScale = 'log2',
     this.percentageMode = 'latest',
     this.enableCountdown = false,
+    this.chartSwipe = 'timeframe',
   });
 
   bool get isConfigured => baseUrl.trim().isNotEmpty;
@@ -72,6 +75,7 @@ class Settings {
     String? octagonScale,
     String? percentageMode,
     bool? enableCountdown,
+    String? chartSwipe,
   }) =>
       Settings(
         baseUrl: baseUrl ?? this.baseUrl,
@@ -91,6 +95,7 @@ class Settings {
         octagonScale: octagonScale ?? this.octagonScale,
         percentageMode: percentageMode ?? this.percentageMode,
         enableCountdown: enableCountdown ?? this.enableCountdown,
+        chartSwipe: chartSwipe ?? this.chartSwipe,
       );
 
   static Future<Settings> load() async {
@@ -111,12 +116,18 @@ class Settings {
       octagonScale: _validScale(prefs.getString(_kOctagonScale)),
       percentageMode: prefs.getString(_kPercentageMode) ?? 'latest',
       enableCountdown: prefs.getBool(_kEnableCountdown) ?? false,
+      chartSwipe: prefs.getString(_kChartSwipe) ?? 'timeframe',
     );
   }
 
   static Future<void> saveEnableCountdown(bool on) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kEnableCountdown, on);
+  }
+
+  static Future<void> saveChartSwipe(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kChartSwipe, mode);
   }
 
   static Future<void> savePercentageMode(String mode) async {

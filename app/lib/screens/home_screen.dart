@@ -30,9 +30,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Summary? _summary;
   OctagonView? _octView;
   OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
-  // Drives the swipeable octagon (one page per metric), so switching animates
-  // like a page transition.
-  final PageController _metricPager = PageController();
+  // Drives the swipeable octagon (one page per metric) when the metric-swipe
+  // mode is on. Starts on Frequency (index 1 in _orderedMetrics), the default
+  // view, so the pager and the toggle agree on first build.
+  final PageController _metricPager = PageController(initialPage: 1);
 
   // Period navigation. [_periodKey] is the dropdown selection; [_navOffset]
   // steps the window back (negative) / forward by one unit of that period.
@@ -409,8 +410,8 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Available metrics in the same order as the toggle segments — used by the
   /// left/right swipe on the chart.
   List<OctagonMetric> _orderedMetrics(Settings s) => [
-        OctagonMetric.frequency,
         OctagonMetric.hours,
+        OctagonMetric.frequency,
         if (s.trackNumber) OctagonMetric.number,
         if (s.trackPercentage) OctagonMetric.percentage,
       ];
@@ -425,6 +426,32 @@ class _HomeScreenState extends State<HomeScreen> {
           duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     }
   }
+
+  /// One octagon chart for a given metric.
+  Widget _chartFor(
+          OctagonView octView, bool average, OctagonMetric m, Repository repo) =>
+      OctagonChart(
+        points: _points(octView, average, m),
+        formatValue: (v) => _formatValue(v, average, m),
+        onTapAxis: _logForCategory,
+        scale: _octagonScale(repo.settings.octagonScale),
+      );
+
+  /// Wrap the chart so a horizontal fling steps the timeframe — the same action
+  /// as the ‹ › arrows below. Swipe left = next (forward), right = previous.
+  /// Axis taps still pass through (the chart only uses onTapUp).
+  Widget _swipeTimeframe({required Widget child}) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (d) {
+          final v = d.primaryVelocity ?? 0;
+          if (v < -200 && _canForward) {
+            _shift(1);
+          } else if (v > 200 && _navigable) {
+            _shift(-1);
+          }
+        },
+        child: child,
+      );
 
   Future<void> _logForCategory(String axisKey) async {
     final repo = _repo;
@@ -562,9 +589,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               segments: [
                 const ButtonSegment(
-                    value: OctagonMetric.frequency, label: Text('Frequency')),
-                const ButtonSegment(
                     value: OctagonMetric.hours, label: Text('Time')),
+                const ButtonSegment(
+                    value: OctagonMetric.frequency, label: Text('Frequency')),
                 if (repo.settings.trackNumber)
                   const ButtonSegment(
                       value: OctagonMetric.number, label: Text('Number')),
@@ -598,24 +625,20 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        // Swipe the chart left/right to switch metric — each metric is its own
-        // page, so it slides out/in like a screen transition.
         SizedBox(
           height: MediaQuery.of(context).size.width - 32, // square chart area
-          child: PageView.builder(
-            controller: _metricPager,
-            itemCount: metrics.length,
-            onPageChanged: (i) => setState(() => _metric = metrics[i]),
-            itemBuilder: (context, i) {
-              final m = metrics[i];
-              return OctagonChart(
-                points: _points(octView, average, m),
-                formatValue: (v) => _formatValue(v, average, m),
-                onTapAxis: _logForCategory,
-                scale: _octagonScale(repo.settings.octagonScale),
-              );
-            },
-          ),
+          // Two swipe behaviours: 'metric' pages through the metrics; the
+          // default 'timeframe' swipes the window like the arrows below.
+          child: repo.settings.chartSwipe == 'metric'
+              ? PageView.builder(
+                  controller: _metricPager,
+                  itemCount: metrics.length,
+                  onPageChanged: (i) => setState(() => _metric = metrics[i]),
+                  itemBuilder: (context, i) =>
+                      _chartFor(octView, average, metrics[i], repo),
+                )
+              : _swipeTimeframe(
+                  child: _chartFor(octView, average, _metric, repo)),
         ),
         const SizedBox(height: 12),
         _periodNav(context),

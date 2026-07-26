@@ -136,6 +136,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() {});
   }
 
+  Future<void> _setChartSwipe(String mode) async {
+    await Settings.saveChartSwipe(mode);
+    await widget.repo
+        .updateSettings(widget.repo.settings.copyWith(chartSwipe: mode));
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -273,6 +280,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             selected: {widget.repo.settings.octagonScale},
             onSelectionChanged: (s) => _setOctagonScale(s.first),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Swiping the chart left/right either steps the timeframe (like the '
+            'arrows below it) or switches the metric.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          SegmentedButton<String>(
+            showSelectedIcon: false,
+            segments: const [
+              ButtonSegment(value: 'timeframe', label: Text('Timeframe')),
+              ButtonSegment(value: 'metric', label: Text('Metric')),
+            ],
+            selected: {widget.repo.settings.chartSwipe},
+            onSelectionChanged: (s) => _setChartSwipe(s.first),
           ),
           const Divider(height: 40),
           Text('Activity', style: Theme.of(context).textTheme.titleMedium),
