@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.67
+
+- **Timeframe swipe animation** now matches the old metric-swipe: a full
+  edge-to-edge carousel slide (incoming window enters one side while the old one
+  leaves the other), instead of the softer slide+fade.
+
 ## What's new in 0.66
 
 - **Time is the default metric** when you open the app (was Frequency).

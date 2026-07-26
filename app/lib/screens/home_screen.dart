@@ -457,27 +457,33 @@ class _HomeScreenState extends State<HomeScreen> {
             _shift(-1);
           }
         },
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, animation) {
-            // New window slides in from the side it's coming from; the old one
-            // fades out. Forward (+1) enters from the right, back (-1) from left.
-            final slide = Tween<Offset>(
-              begin: Offset(0.25 * _enterDir, 0),
-              end: Offset.zero,
-            ).animate(animation);
-            return FadeTransition(
-              opacity: animation,
-              child: SlideTransition(position: slide, child: child),
-            );
-          },
-          // Key by the window so a timeframe change triggers the animation
-          // (metric changes don't — the metric toggle handles those).
-          child: KeyedSubtree(
-            key: ValueKey('${_periodKey}_$_navOffset'),
-            child: child,
+        child: ClipRect(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) {
+              // A full edge-to-edge carousel slide like the metric pager: the
+              // incoming window enters from one side while the outgoing one
+              // leaves the other. Forward (+1) slides content left, back (-1)
+              // slides it right.
+              final incoming = animation.status == AnimationStatus.forward ||
+                  animation.status == AnimationStatus.completed;
+              final sign =
+                  (incoming ? _enterDir : -_enterDir).toDouble();
+              return SlideTransition(
+                position: Tween<Offset>(
+                        begin: Offset(sign, 0), end: Offset.zero)
+                    .animate(animation),
+                child: child,
+              );
+            },
+            // Key by the window so a timeframe change triggers the animation
+            // (metric changes don't — the metric toggle handles those).
+            child: KeyedSubtree(
+              key: ValueKey('${_periodKey}_$_navOffset'),
+              child: child,
+            ),
           ),
         ),
       );
