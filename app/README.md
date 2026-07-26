@@ -26,6 +26,12 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.66
+
+- **Time is the default metric** when you open the app (was Frequency).
+- **Animated timeframe swipe** — swiping the chart between windows (and the ‹ ›
+  arrows) now slides/fades the new window in.
+
 ## What's new in 0.65
 
 - **Metric order** on the chart is now **Time, Frequency**, then Number and

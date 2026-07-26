@@ -29,11 +29,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Repository? _repo;
   Summary? _summary;
   OctagonView? _octView;
-  OctagonMetric _metric = OctagonMetric.frequency; // frequency is the primary view
+  OctagonMetric _metric = OctagonMetric.hours; // Time is the primary view
   // Drives the swipeable octagon (one page per metric) when the metric-swipe
-  // mode is on. Starts on Frequency (index 1 in _orderedMetrics), the default
-  // view, so the pager and the toggle agree on first build.
-  final PageController _metricPager = PageController(initialPage: 1);
+  // mode is on. Starts on Time (index 0 in _orderedMetrics), the default view,
+  // so the pager and the toggle agree on first build.
+  final PageController _metricPager = PageController();
+  // Direction of the last timeframe step (+1 forward / -1 back) — drives the
+  // slide animation between windows.
+  int _enterDir = 1;
 
   // Period navigation. [_periodKey] is the dropdown selection; [_navOffset]
   // steps the window back (negative) / forward by one unit of that period.
@@ -70,9 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _reload() async {
     final repo = _repo;
     if (repo == null) return;
-    // Fall back to Frequency if the selected metric was just disabled.
+    // Fall back to Time if the selected metric was just disabled.
     if (!_availableMetrics(repo.settings).contains(_metric)) {
-      _metric = OctagonMetric.frequency;
+      _metric = OctagonMetric.hours;
     }
     final summary = await repo.summary();
     final w = _windowFor(_navOffset);
@@ -167,7 +170,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _shift(int dir) {
-    setState(() => _navOffset += dir);
+    setState(() {
+      _enterDir = dir; // drives the slide direction
+      _navOffset += dir;
+    });
     _reload();
   }
 
@@ -438,8 +444,9 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   /// Wrap the chart so a horizontal fling steps the timeframe — the same action
-  /// as the ‹ › arrows below. Swipe left = next (forward), right = previous.
-  /// Axis taps still pass through (the chart only uses onTapUp).
+  /// as the ‹ › arrows below — with a slide/fade between windows. Swipe left =
+  /// next (forward), right = previous. Axis taps still pass through (the chart
+  /// only uses onTapUp).
   Widget _swipeTimeframe({required Widget child}) => GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragEnd: (d) {
@@ -450,7 +457,29 @@ class _HomeScreenState extends State<HomeScreen> {
             _shift(-1);
           }
         },
-        child: child,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) {
+            // New window slides in from the side it's coming from; the old one
+            // fades out. Forward (+1) enters from the right, back (-1) from left.
+            final slide = Tween<Offset>(
+              begin: Offset(0.25 * _enterDir, 0),
+              end: Offset.zero,
+            ).animate(animation);
+            return FadeTransition(
+              opacity: animation,
+              child: SlideTransition(position: slide, child: child),
+            );
+          },
+          // Key by the window so a timeframe change triggers the animation
+          // (metric changes don't — the metric toggle handles those).
+          child: KeyedSubtree(
+            key: ValueKey('${_periodKey}_$_navOffset'),
+            child: child,
+          ),
+        ),
       );
 
   Future<void> _logForCategory(String axisKey) async {
