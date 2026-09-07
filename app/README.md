@@ -26,6 +26,13 @@ log, so you can use it immediately with no backend. When you later deploy the
    (device storage)
 ```
 
+## What's new in 0.69
+
+- **Daylight-saving day bug fixed** — stepping the chart through days/weeks no
+  longer skips the 23-hour spring-forward day (Monday → Saturday, missing
+  Sunday) or misfiles a logged day onto the neighbouring one. All window,
+  streak and week-start math now steps by calendar day instead of a fixed 24 h.
+
 ## What's new in 0.68
 
 - **Timeframe swipe direction fixed** — the new window now slides in from the

@@ -83,8 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
     DateTime? end = w.end;
     if (end != null) {
       final now = DateTime.now();
-      final todayExcl =
-          DateTime(now.year, now.month, now.day).add(const Duration(days: 1));
+      final todayExcl = DateTime(now.year, now.month, now.day + 1);
       if (end.isAfter(todayExcl)) end = todayExcl;
     }
     final view = repo.octagonView(w.start, until: end);
@@ -96,6 +95,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Add [n] calendar days to a local midnight, DST-safe. Using
+  /// `DateTime(y, m, d + n)` always lands on local midnight of the target day,
+  /// unlike `.add(Duration(days: n))` which adds a fixed 24h and drifts across
+  /// daylight-saving transitions (e.g. skipping the 23h spring-forward day).
+  static DateTime _addDays(DateTime d, int n) =>
+      DateTime(d.year, d.month, d.day + n);
+
   /// The [start, end) window and a label for the current period at [offset]
   /// (0 = current/base). 'all' has null bounds (no navigation).
   ({DateTime? start, DateTime? end, String label}) _windowFor(int offset) {
@@ -104,15 +110,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final fdow = _repo?.settings.firstDayOfWeek ?? DateTime.monday;
     switch (_periodKey) {
       case 'today':
-        final d = today.add(Duration(days: offset));
-        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDayFull(d));
+        final d = _addDays(today, offset);
+        return (start: d, end: _addDays(d, 1), label: _fmtDayFull(d));
       case 'this_week':
-        final w0 = today.subtract(Duration(days: (today.weekday - fdow + 7) % 7));
-        final ws = w0.add(Duration(days: offset * 7));
+        final w0 = _addDays(today, -((today.weekday - fdow + 7) % 7));
+        final ws = _addDays(w0, offset * 7);
         return (
           start: ws,
-          end: ws.add(const Duration(days: 7)),
-          label: '${_fmtDay(ws)} – ${_fmtDay(ws.add(const Duration(days: 6)))}'
+          end: _addDays(ws, 7),
+          label: '${_fmtDay(ws)} – ${_fmtDay(_addDays(ws, 6))}'
         );
       case 'this_month':
         final m = DateTime(now.year, now.month + offset, 1);
@@ -129,16 +135,17 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case 'custom_day':
         final base = _customStart ?? today;
-        final d = base.add(Duration(days: offset));
-        return (start: d, end: d.add(const Duration(days: 1)), label: _fmtDayFull(d));
+        final d = _addDays(base, offset);
+        return (start: d, end: _addDays(d, 1), label: _fmtDayFull(d));
       case 'custom_range':
         final cs = _customStart ?? today, ce = _customEnd ?? today;
-        final span = ce.difference(cs).inDays + 1;
-        final start = cs.add(Duration(days: offset * span));
-        final endIncl = ce.add(Duration(days: offset * span));
+        // Whole days in the range, rounded so a DST hour doesn't drop a day.
+        final span = (_addDays(ce, 1).difference(cs).inHours / 24).round();
+        final start = _addDays(cs, offset * span);
+        final endIncl = _addDays(ce, offset * span);
         return (
           start: start,
-          end: endIncl.add(const Duration(days: 1)),
+          end: _addDays(endIncl, 1),
           label: '${_fmtDay(start)} – ${_fmtDay(endIncl)}'
         );
       case 'since_first':
@@ -148,7 +155,7 @@ class _HomeScreenState extends State<HomeScreen> {
             : DateTime(first.year, first.month, first.day);
         return (
           start: start,
-          end: today.add(const Duration(days: 1)),
+          end: _addDays(today, 1),
           label: 'Since ${_fmtDay(start)}'
         );
       case 'all':
@@ -189,9 +196,11 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (_periodKey == 'custom_range' &&
           _customStart != null &&
           _customEnd != null) {
-        final span = _customEnd!.difference(_customStart!).inDays + 1;
+        final span =
+            (_addDays(_customEnd!, 1).difference(_customStart!).inHours / 24)
+                .round();
         _customEnd = today;
-        _customStart = today.subtract(Duration(days: span - 1));
+        _customStart = _addDays(today, -(span - 1));
       }
       _navOffset = 0;
     });
@@ -689,10 +698,15 @@ class _HomeScreenState extends State<HomeScreen> {
               OutlinedButton.icon(
                 onPressed: () {
                   final w = _windowFor(_navOffset);
+                  final end = w.end;
                   _push(LoggedScreen(
                     repo: repo,
                     initialFrom: w.start,
-                    initialTo: w.end?.subtract(const Duration(days: 1)),
+                    // Inclusive last day = the day before the exclusive end
+                    // (calendar step, DST-safe).
+                    initialTo: end == null
+                        ? null
+                        : DateTime(end.year, end.month, end.day - 1),
                   ));
                 },
                 icon: const Icon(Icons.filter_alt_outlined),

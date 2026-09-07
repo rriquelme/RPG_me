@@ -209,7 +209,8 @@ class Repository {
           ? 1
           : DateTime.now().difference(DateTime(first.year, first.month, first.day)).inDays + 1;
     } else if (until != null) {
-      days = until.difference(since).inDays;
+      // Round by hours so a daylight-saving 23h/25h day doesn't miscount.
+      days = (until.difference(since).inHours / 24).round();
     } else {
       days = DateTime.now().difference(since).inDays + 1;
     }
